@@ -1,0 +1,4 @@
+{
+  "_note": "Local prescriber registry. An entry counts as VERIFIED only with an authoritative 'source' (e.g. the State Medical Council / NMC register lookup you performed) and a 'verified_on' date within the last year; otherwise rxcheck treats the prescriber as unverified. 'phone' is used for callbacks only when 'phone_source' says where it was independently obtained (never from the prescription itself).",
+  "_coverage": "partial"
+}

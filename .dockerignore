@@ -1,0 +1,14 @@
+# Allowlist: only what the container needs. Everything else - above all samples/, ledger/, inbox/ and
+# reports/, which hold a real prescription - can never enter the image.
+*
+!requirements.txt
+!app/
+app/*
+!app/rxcheck.py
+!app/counter_app.py
+!app/sharedindex.py
+!app/doctorping.py
+!static/app.js
+!static/app.css
+!docker-entrypoint.sh
+!data/*.json

@@ -1,0 +1,30 @@
+# Local Netlify folder
+.netlify
+
+# Never commit: clinic private keys, consented field-study images, counter uploads, restore leftovers
+*.pem
+eval/field/
+ledger/uploads/
+ledger/pre-restore-*/
+data/history/
+
+# Local pharmacy data and private/derived prescription fixtures
+/inbox/
+/ledger/
+/reports/
+/samples/
+/rxcheck-backup-*/
+/backups/
+/eval/manifest.csv
+/eval/setup.json
+/eval/results*.json
+*.db
+*.db-shm
+*.db-wal
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Vue build tooling (the built bundle in static/ IS committed)
+web/node_modules/

@@ -1,0 +1,37 @@
+{
+  "_verified": false,
+  "_source": null,
+  "_note": "SAMPLE list for the prototype only. Verify every entry against the current CDSCO Schedule H1 / Schedule X lists, the NDPS Act schedules and Tamil Nadu drug control notifications before relying on it. Tiers: 'ndps' = NDPS Act / Schedule X (high-risk, and never dispensed on a pharmacist override: fails closed when the clinic cannot be reached); 'high' = Schedule H1 / abuse-prone (waits for a call-back; an override needs a pharmacist, a reason and is counted per person); 'routine' = everything else, including Schedule H (pharmacist judgement, logged). Brand -> molecule map is illustrative, not complete.",
+  "molecules": {
+    "alprazolam": "ndps",
+    "clonazepam": "ndps",
+    "lorazepam": "ndps",
+    "diazepam": "ndps",
+    "nitrazepam": "ndps",
+    "chlordiazepoxide": "ndps",
+    "midazolam": "ndps",
+    "zolpidem": "high",
+    "tramadol": "ndps",
+    "tapentadol": "high",
+    "codeine": "ndps",
+    "buprenorphine": "ndps",
+    "pentazocine": "ndps",
+    "pregabalin": "high",
+    "mifepristone": "high",
+    "misoprostol": "high"
+  },
+  "brands": {
+    "alprax": "alprazolam",
+    "restyl": "alprazolam",
+    "lonazep": "clonazepam",
+    "clonotril": "clonazepam",
+    "rivotril": "clonazepam",
+    "ativan": "lorazepam",
+    "valium": "diazepam",
+    "nitrest": "zolpidem",
+    "zolfresh": "zolpidem",
+    "ultracet": "tramadol",
+    "tramazac": "tramadol",
+    "lyrica": "pregabalin"
+  }
+}

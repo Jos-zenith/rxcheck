@@ -1,0 +1,24 @@
+# Render Blueprint: public DEMO deployment of the rxcheck counter app.
+# Render dashboard -> New -> Blueprint -> this repository. You will be asked for the two values marked
+# sync: false (the first pharmacist account); they are stored by Render, never in this file.
+# A persistent disk needs a paid instance type; without it every restart or deploy wipes the demo data.
+services:
+  - type: web
+    name: rxcheck-demo
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: singapore          # closest Render region to India
+    plan: starter
+    healthCheckPath: /healthz
+    autoDeploy: false          # deploy deliberately, after the tests pass
+    disk:
+      name: rxcheck-data
+      mountPath: /var/rxcheck
+      sizeGB: 1
+    envVars:
+      - key: RXCHECK_ADMIN_NAME
+        sync: false
+      - key: RXCHECK_ADMIN_PIN   # 6+ digits; used only to create the first pharmacist
+        sync: false
+      - key: RXCHECK_DEMO
+        value: "1"

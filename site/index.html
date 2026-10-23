@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f7f2">
+    <meta name="description" content="Rxcheck is a local research prototype for prescription verification triage at pharmacy counters.">
+    <title>Rxcheck — prescription triage for pharmacy counters</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Rxcheck home">
+        <span class="brand-mark" aria-hidden="true">rx</span>
+        <span>rxcheck</span>
+      </a>
+      <span class="header-note">A research prototype</span>
+    </header>
+
+    <main>
+      <section class="hero">
+        <p class="eyebrow">Prescription verification triage</p>
+        <h1>Make the next step clearer.<br><span>Not the verdict louder.</span></h1>
+        <p class="intro">Rxcheck helps pharmacy staff decide whether a prescription image can proceed, needs confirmation, or should be held for review.</p>
+        <p class="prototype-label"><span aria-hidden="true"></span> Local-first prototype · Not a certificate of authenticity</p>
+      </section>
+
+      <section class="states" aria-label="Triage outcomes">
+        <article class="state state-green">
+          <span class="state-dot" aria-hidden="true"></span>
+          <h2>GREEN</h2>
+          <p>No configured check raised an issue. This does not prove the prescription is genuine.</p>
+        </article>
+        <article class="state state-amber">
+          <span class="state-dot" aria-hidden="true"></span>
+          <h2>AMBER</h2>
+          <p>Confirmation is needed. Keep the prescription on hold while a person reviews it.</p>
+        </article>
+        <article class="state state-red">
+          <span class="state-dot" aria-hidden="true"></span>
+          <h2>RED</h2>
+          <p>A specific integrity check failed. Hold the prescription and follow the review process.</p>
+        </article>
+      </section>
+
+      <section class="details">
+        <div>
+          <p class="eyebrow">What it checks</p>
+          <h2>Signals a counter team can act on</h2>
+        </div>
+        <ul class="check-list">
+          <li><span>01</span><div><strong>Seen before</strong><p>Compares a slip with records held by that pharmacy.</p></div></li>
+          <li><span>02</span><div><strong>Prescriber details</strong><p>Checks registration details against the pharmacy's local registry.</p></div></li>
+          <li><span>03</span><div><strong>Requested medicines</strong><p>Highlights differences from a previously recorded request.</p></div></li>
+          <li><span>04</span><div><strong>Review workflow</strong><p>Keeps unresolved cases in a hold queue with an audit trail.</p></div></li>
+        </ul>
+      </section>
+
+      <section class="privacy">
+        <div class="privacy-icon" aria-hidden="true">⌂</div>
+        <div>
+          <p class="eyebrow">Local by design</p>
+          <h2>Prescription checks stay on the counter PC</h2>
+          <p>The prototype runs offline and stores its records locally. This informational website does not accept, upload, or analyze prescription images.</p>
+        </div>
+      </section>
+
+      <aside class="disclaimer">
+        <strong>Research prototype — not for operational use.</strong>
+        <p>Rxcheck cannot establish that a doctor issued a prescription. Its registry and drug-risk list are illustrative and require authoritative verification. Clinical, legal, privacy, and real-world performance reviews are needed before any pharmacy use.</p>
+      </aside>
+    </main>
+
+    <footer>
+      <span>rxcheck</span>
+      <span>Prescription triage, with clear limits.</span>
+    </footer>
+  </body>
+</html>

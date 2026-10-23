@@ -1,0 +1,5 @@
+{
+  "_note": "Pharmacy policy switches. confirm_new_high_risk: a high-risk prescription seen for the first time needs issuance confirmation even when the Regn No is valid (a valid registration proves the doctor exists, not that they wrote this slip). Turning it off trades safety for fewer calls - decide with your compliance adviser. require_receipt_ndps: when true, an NDPS / Schedule X item is confirmed only on the prescriber's signed receipt (rxcheck doctor ask); needs the doctor to be enrolled. Default off.",
+  "confirm_new_high_risk": true,
+  "require_receipt_ndps": false
+}

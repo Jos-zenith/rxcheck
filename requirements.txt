@@ -1,0 +1,9 @@
+# Runtime dependencies for the counter app (python rxcheck.py serve).
+# OpenCV stays on the version every detection threshold was tuned and tested with; a major upgrade must be
+# re-evaluated (eval/evaluate.py) before use. Pillow and cryptography handle untrusted uploads and signatures,
+# so they track current releases.
+opencv-python-headless==4.11.0.86
+numpy==2.4.6
+Pillow==12.3.0
+cryptography==50.0.2
+qrcode==8.2
