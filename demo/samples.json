@@ -1,0 +1,52 @@
+{
+  "_note": "Synthetic sample slips for the public demo. Not real prescriptions. Regenerate with tests/make_demo_samples.py.",
+  "reference": {
+    "id": "RX-DEMO-0812",
+    "dispensed": "2026-08-12",
+    "regn": "DEMO-1001",
+    "doctor": "Dr. Demo Sample",
+    "drugs": "Dolo 650, Pan 40, Alprax 0.25",
+    "image": "reference.jpg"
+  },
+  "samples": [
+    {
+      "key": "edited",
+      "image": "edited.jpg",
+      "label": "Edited copy",
+      "expect": "RED",
+      "what": "The recorded slip with a drug line added by hand",
+      "fields": {
+        "drugs": "Alprax 0.5",
+        "regn": "DEMO-1001",
+        "doctor": "Dr. Demo Sample",
+        "patient": "Sample Patient"
+      }
+    },
+    {
+      "key": "resent",
+      "image": "resent.jpg",
+      "label": "Re-sent on WhatsApp",
+      "expect": "GREEN",
+      "what": "The same recorded slip, photographed again and forwarded",
+      "fields": {
+        "drugs": "Dolo 650, Pan 40",
+        "regn": "DEMO-1001",
+        "doctor": "Dr. Demo Sample",
+        "patient": "Sample Patient"
+      }
+    },
+    {
+      "key": "new",
+      "image": "new.jpg",
+      "label": "New slip, high-risk drug",
+      "expect": "AMBER",
+      "what": "A slip never seen before, with a high-risk medicine on it",
+      "fields": {
+        "drugs": "Alprax 0.25, Dolo 650",
+        "regn": "DEMO-2002",
+        "doctor": "Dr. Second Sample",
+        "patient": "Sample Patient"
+      }
+    }
+  ]
+}

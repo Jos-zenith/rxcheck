@@ -12,3 +12,5 @@ app/*
 !static/app.css
 !docker-entrypoint.sh
 !data/*.json
+!demo/*.jpg
+!demo/samples.json

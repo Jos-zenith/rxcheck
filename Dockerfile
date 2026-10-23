@@ -20,6 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY app/rxcheck.py app/counter_app.py app/sharedindex.py app/doctorping.py ./app/
 COPY docker-entrypoint.sh ./
 COPY data/*.json ./data/
+# synthetic sample slips for the public demo (regenerated and checked by tests/test_deploy.py)
+COPY demo/ ./demo/
 # the Vue bundle, built from web/ and committed: the image needs no Node
 COPY static/app.js static/app.css ./static/
 RUN chmod 0755 docker-entrypoint.sh

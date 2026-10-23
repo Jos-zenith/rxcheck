@@ -49,10 +49,25 @@ check(f"image build context is code + default data only ({', '.join(inside)})",
       set(inside) == {"requirements.txt", "app/rxcheck.py", "app/counter_app.py", "app/sharedindex.py", "app/doctorping.py",
                       "docker-entrypoint.sh",
                       "data/drug_risk.json", "data/policy.json", "data/registry.json",
-                      "static/app.js", "static/app.css"})
-check("no image, ledger, report or key file can enter the image",
+                      "static/app.js", "static/app.css",
+                      "demo/samples.json", "demo/reference.jpg", "demo/edited.jpg", "demo/resent.jpg", "demo/new.jpg"})
+check("no image, ledger, report or key file can enter the image (only the synthetic demo slips)",
       not [f for f in inside if f.split("/")[0] in ("samples", "ledger", "inbox", "reports", "eval")
-           or f.endswith((".jpg", ".png", ".db", ".pem"))])
+           or (f.endswith((".jpg", ".png")) and not f.startswith("demo/")) or f.endswith((".db", ".pem"))])
+# every image in demo/ must be what the synthetic generator makes - a real photo can never ship as a "sample"
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
+from scenarios import demo_slips  # noqa: E402
+made = demo_slips()
+shipped = sorted(p.name for p in (ROOT / "demo").glob("*") if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"))
+diffs = {}
+for name in shipped:
+    img = cv2.imdecode(np.fromfile(str(ROOT / "demo" / name), np.uint8), cv2.IMREAD_COLOR)
+    ref = made.get(Path(name).stem)
+    diffs[name] = None if ref is None or img is None or img.shape != ref.shape else \
+        float(np.abs(img.astype(np.int16) - ref.astype(np.int16)).mean())
+check("demo/ images are exactly the synthetic generator's output (tests/make_demo_samples.py)",
+      shipped == sorted(f"{k}.jpg" for k in made) and all(d is not None and d < 2.0 for d in diffs.values()), str(diffs))
 dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 render = (ROOT / "render.yaml").read_text(encoding="utf-8")
 check("Dockerfile: demo mode on, state on the disk, served behind the host's HTTPS proxy",
@@ -122,6 +137,51 @@ with tempfile.TemporaryDirectory() as t:
                     dict(form, **{"X-Forwarded-For": f"198.51.100.{i}"}))[0] for i in range(6)]
     check("PIN guessing from rotating addresses is still locked out after 5 tries", statuses == [401] * 5 + [429],
           statuses)
+
+    # ---- public demo: open the link and use the counter - no account; one-click synthetic sample slips
+    def req2(method, path, body=None, headers=None):
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=120)
+        c.request(method, path, body=body, headers=headers or {})
+        res = c.getresponse()
+        data = res.read().decode("utf-8", "replace")
+        c.close()
+        return res.status, res.getheader("Location") or "", res.getheader("Set-Cookie") or "", data
+
+    s, loc, _, _ = req2("GET", "/")
+    check("demo mode without the demo prepared still asks for sign-in", s == 303 and loc == "/login")
+    app.prepare_demo()
+    app.prepare_demo()   # a restart: nothing duplicated
+    n_demo = r.db().execute("SELECT COUNT(*) FROM staff WHERE name = ?", (app.DEMO_USER,)).fetchone()[0]
+    n_ref = r.db().execute("SELECT COUNT(*) FROM entries WHERE id = 'RX-DEMO-0812'").fetchone()[0]
+    check("demo prepared once: one 'Demo visitor' account, the synthetic reference slip on record", (n_demo, n_ref) == (1, 1))
+    s, _, cookie, body = req2("GET", "/")
+    tok = re.search(r"rxs=([^;]+)", cookie)
+    check("opening the link signs the visitor in as 'Demo visitor' - no PIN, cookie Secure/HttpOnly/Strict",
+          s == 200 and tok is not None and "Demo visitor" in body and "Try it with a sample slip" in body
+          and all(x in cookie for x in ("Secure", "HttpOnly", "SameSite=Strict")), cookie)
+    s, _, _, _ = req2("POST", "/login", urlencode({"name": app.DEMO_USER, "pin": "000000000000"}), form)
+    check("nobody can sign in as 'Demo visitor' with a PIN", s == 401)
+    h = {"Cookie": f"rxs={tok.group(1)}", **form}
+    csrf = re.search(r'name="csrf" value="([^"]+)"', body).group(1)
+    s, _, _, _ = req2("POST", "/demo/try", urlencode({"key": "edited"}), h)
+    check("a sample still needs the form token (CSRF)", s == 403)
+    s, loc, _, _ = req2("POST", "/demo/try", urlencode({"key": "edited", "csrf": csrf}), h)
+    cid = loc.rsplit("/", 1)[-1]
+    s, _, _, body = req2("GET", loc, headers=h)
+    check("a sample opens as a case with its medicines filled in", s == 200 and 'value="Alprax 0.5"' in body, loc)
+    s, loc2, _, _ = req2("POST", f"/case/{cid}/check", urlencode({"csrf": csrf, "drugs": "Alprax 0.5", "regn": "DEMO-1001",
+                                                                  "doctor": "Dr. Demo Sample"}), h)
+    s, _, _, body = req2("GET", loc2 or f"/case/{cid}", headers=h)
+    check("the edited sample is caught as an edited copy of the recorded slip (RED)",
+          'class="verdict v-RED"' in body and "RX-DEMO-0812" in body)
+    got = {}
+    for smp in app.demo_samples()["samples"]:
+        f = smp["fields"]
+        rep = r.run_check(app.DEMO_DIR / smp["image"], f["drugs"], f.get("regn"), f.get("doctor"), draw=False)
+        got[smp["key"]] = (max(rep["verdicts"].values(), key=r.ORDER.index), smp["expect"])
+    check("every demo sample gives the verdict its tile promises", all(a == b for a, b in got.values()), str(got))
+    s, _, _, _ = req2("POST", "/demo/try", urlencode({"key": "../ledger/rxcheck.db", "csrf": csrf}), h)
+    check("only the listed samples can be opened", s == 404)
     srv.shutdown()
     srv.server_close()
     app.DEMO = False

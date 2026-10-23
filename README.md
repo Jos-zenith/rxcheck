@@ -293,20 +293,22 @@ Tested with four signed-in counters checking at the same time: every check was d
 
 The counter app is designed to run inside a pharmacy's own network. A **public** deployment is a demonstration only. Every page carries a banner saying not to upload real prescriptions or patient data, and demo mode is on by default in the image.
 
+**No sign-in for visitors.** In demo mode (`RXCHECK_DEMO=1`) anyone who opens the link lands on the counter, signed in as **Demo visitor** (a pharmacist account whose PIN is random and never shown, so nobody can sign in as it). The counter page offers three one-click **sample slips** from `demo/`: an edited copy (RED), the same slip re-sent on WhatsApp (GREEN) and a new slip with a high-risk medicine (AMBER). On start the app records `demo/reference.jpg` as an already-dispensed slip, so those verdicts come out as labelled. The samples are synthetic (`tests/make_demo_samples.py`); `tests/test_deploy.py` regenerates them and fails if any image in `demo/` differs, so a real photo cannot ship as a sample. Outside demo mode nothing changes: every user signs in with a PIN.
+
 | File | What it does |
 |---|---|
 | `Dockerfile` | `python:3.12-slim` with the pinned `requirements.txt`. Runs `serve --host 0.0.0.0 --behind-proxy` on `$PORT`. All state (ledger, holds, audit, uploads, data files, backups) lives in `RXCHECK_HOME=/var/rxcheck`, which must be a persistent disk |
 | `docker-entrypoint.sh` | Hands the mounted disk to an unprivileged user (uid 10001), then drops root |
-| `.dockerignore` | **Allowlist**: only `app/rxcheck.py`, `app/counter_app.py`, the built `static/app.js` and `static/app.css`, the start script, `requirements.txt` and `data/*.json` can enter the image |
+| `.dockerignore` | **Allowlist**: only `app/rxcheck.py`, `app/counter_app.py`, the built `static/app.js` and `static/app.css`, the start script, `requirements.txt`, `data/*.json` and the synthetic demo slips in `demo/` can enter the image |
 | `render.yaml` | Render Blueprint: Docker web service in Singapore, 1 GB disk at `/var/rxcheck`, health check `/healthz`, demo mode on |
 
-**Deploy on Render:** push the repository, then in the Render dashboard choose *New → Blueprint* and select the repository. Render asks for `RXCHECK_ADMIN_NAME` and `RXCHECK_ADMIN_PIN` (6+ digits). They create the first pharmacist on first start, once, and are stored by Render, not in the repository. A persistent disk needs a paid instance type; without a disk every restart wipes the demo. Other hosts (Fly.io, Railway, a VPS behind Caddy or nginx) work with the same image: mount a disk at `/var/rxcheck`, set those two variables, and terminate HTTPS in front of it.
+**Deploy on Render:** push the repository, then in the Render dashboard choose *New → Blueprint* and select the repository. Render asks for `RXCHECK_ADMIN_NAME` and `RXCHECK_ADMIN_PIN` (6+ digits). Both are **optional** for the public demo, which needs no account; set them only if you want your own pharmacist sign-in as well. They create that pharmacist on first start, once, and are stored by Render, not in the repository. A persistent disk needs a paid instance type; without a disk every restart wipes the demo. Other hosts (Fly.io, Railway, a VPS behind Caddy or nginx) work with the same image: mount a disk at `/var/rxcheck`, optionally set those two variables, and terminate HTTPS in front of it.
 
 Behind the host's HTTPS proxy (`--behind-proxy`), session cookies are `Secure`, and the client address comes from the last `X-Forwarded-For` entry, which the proxy wrote; earlier entries can be forged by the client. Wrong-PIN lockout is per staff name, not per address, so guessing from rotating addresses is still stopped after 5 tries. `/healthz` answers without sign-in and reveals nothing.
 
 The deploy checks verify the image allowlist, the start script, the empty-disk setup, sign-in and a full check over HTTP. A deployment still needs a Docker build and runtime validation on its host.
 
-Limits of a public demo: scheduled backups go to the same disk, so copy them off-site if the data matters. PIN sign-in is the only access control. And this is a research prototype: it is not for dispensing decisions.
+Limits of a public demo: scheduled backups go to the same disk, so copy them off-site if the data matters. Visitors share one demo ledger and audit trail, so they see each other's checks; uploads are deleted after 24 hours. There is no rate limit on uploads. And this is a research prototype: it is not for dispensing decisions.
 
 ## Storage, audit, backup and recovery
 
@@ -476,6 +478,3 @@ python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk]
 | `eval/` | Set builder and evaluator; generated manifests, images, and results are local-only |
 | `data/` | Empty prescriber registry, illustrative drug-risk list, policy switches |
 | `ledger/`, `inbox/`, `reports/`, `samples/` | Local runtime or private dataset directories; excluded from Git |
-"# rxche" 
-"# rxche" 
-"# rxche" 

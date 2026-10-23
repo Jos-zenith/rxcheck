@@ -34,6 +34,9 @@ import doctorping as dp
 import rxcheck as r
 
 MAX_UPLOAD = 15 * 1024 * 1024
+DEMO_USER = "Demo visitor"                # public demo only: everyone who opens the link is signed in as this
+DEMO_DIR = Path(__file__).resolve().parent.parent / "demo"   # synthetic sample slips (tests/make_demo_samples.py)
+MAX_DEMO_SESSIONS = 500                   # a crawler cannot fill memory with demo sessions
 SESSION_IDLE = timedelta(minutes=30)      # shared counter PCs: re-enter the PIN after a break
 SESSION_MAX = timedelta(hours=10)         # one shift
 MAX_FAILURES, FAILURE_WINDOW = 5, timedelta(minutes=10)
@@ -270,6 +273,9 @@ kbd[data-keys]{margin-left:8px;font-size:.85em;opacity:.95}.hint{color:var(--mut
 .login{max-width:440px;margin:48px auto;padding:32px}.login button{width:100%;min-height:50px}
 .big-mark{width:52px;height:52px;font-size:1.3rem;border-radius:14px;margin-bottom:14px}
 label.tick{font-weight:400;display:flex;gap:8px;align-items:flex-start}
+.samples{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.sample{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:14px;border-radius:12px;background:var(--bg);border:var(--bw) solid var(--line)}
+.sample button{margin-top:auto}.demo-try{border:2px solid var(--accent)}
 @media (max-width:600px){main{padding:12px}header{padding:8px 12px}.who>span:not(.avatar){display:none}
 .who{order:1;margin-left:auto}header nav{order:2;flex-basis:100%}#rx-display{order:3}
 .verdict{grid-template-columns:1fr;gap:10px;padding:16px;border-left-width:8px}.verdict .icon{width:46px;height:46px;font-size:1.5rem}
@@ -304,8 +310,9 @@ def page(title, body, user=None, refresh=None):
         nav = (f'<nav aria-label="Main">{"".join(tab(h, l) for h, l in tabs)}</nav>'
                f'<div class="who"><span class="avatar" aria-hidden="true">{esc(initials)}</span>'
                f'<span><b>{esc(user["name"])}</b><span class="role">{esc(user["role"])}</span></span>'
-               f'<form class="inline" method="post" action="/logout">{csrf_field(user)}'
-               f'<button class="secondary small" type="submit">Sign out</button></form></div>')
+               + ("" if user["name"] == DEMO_USER else   # the public demo visitor has nothing to sign out of
+                  f'<form class="inline" method="post" action="/logout">{csrf_field(user)}'
+                  f'<button class="secondary small" type="submit">Sign out</button></form>') + '</div>')
     meta = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
     banner = f'<p class="demo" role="alert">{esc(DEMO_BANNER)}</p>' if DEMO else ""
     enhance = ""
@@ -379,6 +386,9 @@ def backup_line():
 
 def login_page(error=""):
     err = f'<p class="warn">{esc(error)}</p>' if error else ""
+    if DEMO and demo_ready():
+        err = ('<p><a class="button-link" href="/">Open the public demo - no account needed</a></p>'
+               '<p class="muted">Pharmacist accounts sign in below.</p>') + err
     return page("Sign in", f"""<section class="card login"><span class="mark big-mark" aria-hidden="true">Rx</span>
 <h1>Sign in to the counter</h1><p class="muted">Prescription checks for this pharmacy.</p>{err}<form method="post" action="/login">
 <label for="name">Name</label><input type="text" id="name" name="name" autocomplete="username" required autofocus>
@@ -454,7 +464,7 @@ def home_page(user):
     backup = backup_line()
     alerts = holds + (backup.replace('<p class="warn">', '<p class="notice notice-red">') if 'class="warn"' in backup else "")
     status = "" if 'class="warn"' in backup else f'<section class="card">{backup}</section>'
-    return page("Counter", f"""{alerts}<div class="home"><section class="card hero" id="check"><h1>Check a prescription</h1>
+    return page("Counter", f"""{alerts}{demo_panel(user)}<div class="home"><section class="card hero" id="check"><h1>Check a prescription</h1>
 <p class="muted">Photo of the paper slip, or the image the customer forwarded. Takes about two seconds.</p>
 <form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
 <label for="image" class="drop"><span class="drop-title">Prescription photo {kbd("Mod+U")}</span>
@@ -466,10 +476,29 @@ def home_page(user):
 <section class="card"><h2>Received on WhatsApp</h2>{inbox}</section>{status}""", user, refresh=60)
 
 
+def demo_panel(user):
+    """Public demo: one-click synthetic sample slips, so a visitor sees every verdict without a prescription."""
+    meta = demo_samples() if DEMO and demo_ready() else None
+    if not meta:
+        return ""
+    ref = meta["reference"]
+    tiles = "".join(
+        f'<form method="post" action="/demo/try" class="sample">{csrf_field(user)}'
+        f'<input type="hidden" name="key" value="{esc(s["key"])}">'
+        f'<span class="pill v-{esc(s.get("expect", "GREEN"))}">{esc(s.get("expect", ""))}</span>'
+        f'<b>{esc(s["label"])}</b><span class="muted">{esc(s.get("what", ""))}</span>'
+        f'<button type="submit" class="secondary">Check this sample</button></form>'
+        for s in meta["samples"] if (DEMO_DIR / s["image"]).is_file())
+    return (f'<section class="card demo-try" aria-labelledby="demo-h"><h2 id="demo-h">Try it with a sample slip</h2>'
+            f'<p>This public demo has one slip on record: <b>{esc(ref["id"])}</b>, dispensed {esc(ref["dispensed"])}. '
+            f'Each sample below is a synthetic test image - pick one and the medicines are filled in for you.</p>'
+            f'<div class="samples">{tiles}</div></section>')
+
+
 def entry_form(user, cid, case, fields=None, issues=None, error=""):
     pre = case["pre"]
     iss = pre.get("issuance") or {}
-    f = dict(fields or {})
+    f = dict(fields or case.get("prefill") or {})
     signed = iss.get("status") == "verified" and iss.get("fields")
     if signed and not fields:
         f = {"drugs": signed["drugs"], "regn": signed["regn"], "rx_date": signed["date"],
@@ -1017,10 +1046,31 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", CSP)
-        for k, v in headers:
+        for k, v in list(headers) + self.demo_cookie():
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
+
+    def demo_cookie(self):
+        """The Set-Cookie of a demo session opened on this request (public demo only), else nothing."""
+        tok = getattr(self, "_demo_token", None)
+        if not tok:
+            return []
+        secure = "; Secure" if STATE.tls else ""
+        return [("Set-Cookie", f"rxs={tok}; HttpOnly; SameSite=Strict; Path=/{secure}")]
+
+    def demo_session(self):
+        """Public demo: sign the visitor in as DEMO_USER without a PIN. Never used unless RXCHECK_DEMO is on."""
+        tok, t = secrets.token_urlsafe(32), datetime.now()
+        with STATE.lock:
+            demo = sorted((s["last"], k) for k, s in STATE.sessions.items() if s["name"] == DEMO_USER)
+            for _, k in demo[:max(0, len(demo) - MAX_DEMO_SESSIONS + 1)]:
+                STATE.sessions.pop(k, None)
+            STATE.sessions[tok] = {"name": DEMO_USER, "role": "pharmacist", "csrf": secrets.token_urlsafe(24),
+                                   "start": t, "last": t}
+            s = dict(STATE.sessions[tok], token=tok)
+        self._demo_token = tok
+        return s
 
     def send_json(self, code, obj):
         self.send(code, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8")
@@ -1046,7 +1096,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(303)
         self.send_header("Location", to)
         self.send_header("Content-Length", "0")
-        for k, v in headers:
+        for k, v in list(headers) + self.demo_cookie():
             self.send_header(k, v)
         self.end_headers()
 
@@ -1108,7 +1158,7 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         api = path.startswith("/api/")
         try:
-            self.user = None
+            self.user, self._demo_token = None, None
             _REQ.ui = self.cookie("rxui")
             _REQ.path = path
             if method == "GET" and path == "/app.css":
@@ -1121,6 +1171,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/login":
                 return self.login(method)
             self.user = self.session()
+            if self.user is None and DEMO and method == "GET" and not api and demo_ready():
+                self.user = self.demo_session()   # public demo: open the link, use the counter - no account
             if self.user is None:
                 if method == "POST" or api:
                     raise HttpError(401, "Signed out - sign in again")
@@ -1207,6 +1259,18 @@ class Handler(BaseHTTPRequestHandler):
             if not data:
                 raise HttpError(400, "Choose a photo of the prescription first")
             cid = new_case(data, Path(name).suffix.lower() or ".jpg", "upload")
+            return self.redirect(f"/case/{cid}")
+        if method == "POST" and parts == ["demo", "try"] and DEMO and demo_ready():
+            key = self.field("key")
+            sample = next((s for s in (demo_samples() or {}).get("samples", []) if s.get("key") == key), None)
+            src = DEMO_DIR / sample["image"] if sample else None
+            if not src or Path(sample["image"]).name != sample["image"] or not src.is_file():
+                raise HttpError(404, "That sample is not available")
+            cid = new_case(src.read_bytes(), src.suffix.lower(), f"demo:{key}")
+            with STATE.case_lock:
+                _, case = load_case(cid)
+                case["prefill"] = {k: str(v) for k, v in (sample.get("fields") or {}).items()}
+                save_case(cid, case)
             return self.redirect(f"/case/{cid}")
         if method == "POST" and parts == ["inbox", "take"]:
             name = self.field("name")
@@ -1427,7 +1491,8 @@ def make_server(host="127.0.0.1", port=8765, inbox=None, backup_dir=None, backup
 def bootstrap_admin():
     """A cloud host has no terminal for `staff add`: create the first pharmacist from RXCHECK_ADMIN_NAME and
     RXCHECK_ADMIN_PIN - only while no pharmacist exists, so changing or leaving the variables later does nothing."""
-    n = r.db().execute("SELECT COUNT(*) FROM staff WHERE active = 1 AND role = 'pharmacist'").fetchone()[0]
+    n = r.db().execute("SELECT COUNT(*) FROM staff WHERE active = 1 AND role = 'pharmacist' AND name != ?",
+                       (DEMO_USER,)).fetchone()[0]
     name, pin = os.environ.get("RXCHECK_ADMIN_NAME", "").strip(), os.environ.get("RXCHECK_ADMIN_PIN", "").strip()
     if n or not (name and pin):
         return n > 0
@@ -1438,12 +1503,52 @@ def bootstrap_admin():
     return True
 
 
+_DEMO_READY = False
+
+
+def demo_ready():
+    return _DEMO_READY
+
+
+def demo_samples():
+    """The public demo's synthetic sample slips (demo/samples.json): {'reference': {...}, 'samples': [...]}."""
+    try:
+        meta = json.loads((DEMO_DIR / "samples.json").read_text(encoding="utf-8"))
+        return meta if isinstance(meta.get("samples"), list) and isinstance(meta.get("reference"), dict) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def prepare_demo():
+    """Public demo (RXCHECK_DEMO=1): a 'Demo visitor' pharmacist that needs no PIN (its PIN is random and never
+    shown), and the synthetic reference slip recorded as already dispensed, so the samples show every verdict."""
+    global _DEMO_READY
+    con = r.db()
+    r.set_actor("bootstrap")
+    try:
+        if not con.execute("SELECT 1 FROM staff WHERE name = ?", (DEMO_USER,)).fetchone():
+            r.add_staff(DEMO_USER, "pharmacist", str(secrets.randbelow(10 ** 12)).zfill(12))
+        meta = demo_samples()
+        ref = (meta or {}).get("reference") or {}
+        if ref.get("image") and (DEMO_DIR / ref["image"]).is_file() and \
+                not con.execute("SELECT 1 FROM entries WHERE id = ?", (ref["id"],)).fetchone():
+            r.add_entry(DEMO_DIR / ref["image"], ref["id"], ref["dispensed"], ref.get("regn"), ref.get("doctor"),
+                        ref.get("drugs") or "", note="public demo: synthetic reference slip")
+    finally:
+        r.set_actor(None)
+    _DEMO_READY = True
+
+
 def serve(host, port, inbox=None, backup_dir=None, backup_hours=4.0, cert=None, key=None, behind_proxy=False):
     try:
         have_admin = bootstrap_admin()
     except ValueError as ex:
         sys.exit(f"RXCHECK_ADMIN_PIN rejected: {ex}")
-    if not have_admin:
+    if DEMO:
+        prepare_demo()
+        print(f"DEMO mode: no sign-in needed - visitors use the counter as '{DEMO_USER}'"
+              + ("" if have_admin else " (no pharmacist account; set RXCHECK_ADMIN_NAME / _PIN to add one)"))
+    elif not have_admin:
         sys.exit("No pharmacist account yet. Create one first:  python app/rxcheck.py staff add NAME --role pharmacist\n"
                  "(on a cloud host: set RXCHECK_ADMIN_NAME and RXCHECK_ADMIN_PIN)")
     problems = r.verify_store()

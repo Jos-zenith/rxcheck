@@ -41,6 +41,14 @@ def synthetic_samples(original=None):
     return original, suspect
 
 
+def demo_slips():
+    """The public demo's sample slips, {name: image}. Built from the synthetic generator only - never from the
+    private pair in samples/local - so tests/test_deploy.py can regenerate and compare every image in demo/."""
+    original, _ = synthetic_samples()
+    return {"reference": original, "edited": added_line(original), "resent": whatsapp(original),
+            "new": other_slip(7)}
+
+
 def load_samples():
     if PRIVATE_PAIR:
         return (r.read_bgr(ROOT / "samples" / "local" / "reference.jpg"),
