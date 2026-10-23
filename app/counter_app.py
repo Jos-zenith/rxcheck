@@ -56,7 +56,7 @@ OUTCOME_LABELS = {"confirmed": "Clinic confirmed", "refused": "Refused", "dispen
 VERDICT_UI = {
     "RED": ("HOLD", "Do not dispense until confirmed"),
     "AMBER": ("CONFIRM FIRST", "Needs confirmation before dispensing"),
-    "GREEN": ("OK TO DISPENSE", "No issues found - dispense with normal checks"),
+    "GREEN": ("NO CONFLICT FOUND", "Dispense with your normal checks - this is not proof the slip is genuine"),
 }
 
 
@@ -276,6 +276,7 @@ label.tick{font-weight:400;display:flex;gap:8px;align-items:flex-start}
 .samples{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .sample{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:14px;border-radius:12px;background:var(--bg);border:var(--bw) solid var(--line)}
 .sample button{margin-top:auto}.demo-try{border:2px solid var(--accent)}
+.say{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:var(--bg);color:var(--ink)}
 @media (max-width:600px){main{padding:12px}header{padding:8px 12px}.who>span:not(.avatar){display:none}
 .who{order:1;margin-left:auto}header nav{order:2;flex-basis:100%}#rx-display{order:3}
 .verdict{grid-template-columns:1fr;gap:10px;padding:16px;border-left-width:8px}.verdict .icon{width:46px;height:46px;font-size:1.5rem}
@@ -352,6 +353,16 @@ def detail_of(row):
 
 def csrf_field(user):
     return f'<input type="hidden" name="csrf" value="{esc(user["csrf"])}">' if user else ""
+
+
+# What staff say while a slip is checked: neutral, never an accusation in front of a queue - a failed check is
+# not proof of fraud, and a RED said out loud starts arguments.
+SAY_TO_CUSTOMER = {
+    "call": "“I need to confirm this prescription with the clinic - it takes a few minutes. You can wait, or "
+            "take the other items now.”",
+    "counter": "“One moment, I am checking the prescription.”",
+    "retake": "“Could you show me the paper slip, or send a clearer photo?”",
+}
 
 
 def plain(reason):
@@ -562,8 +573,10 @@ def decision_page(user, cid, case, error="", notice=""):
     if rep.get("path"):
         phone = f" Registry phone: {rep['callback']}." if rep.get("callback") and rep["path"] == "call" else ""
         steps = "".join(f"<li>{esc(x)}</li>" for x in rep["steps"])
+        say = SAY_TO_CUSTOMER.get(rep["path"], "")
         todo = (f'<div class="next path-{rep["path"]}"><b>{esc(r.PATH_LABELS[rep["path"]])}</b>{esc(phone)}'
-                f'<ul>{steps}</ul></div>')
+                f'<ul>{steps}</ul>' + (f'<p class="say"><b>Tell the customer:</b> {esc(say)}</p>' if say else "")
+                + '</div>')
     else:
         todo = f'<p class="next"><b>Next:</b> {esc(r.ACTIONS[worst])}</p>'
     err = f'<p class="warn">{esc(error)}</p>' if error else ""

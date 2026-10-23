@@ -174,6 +174,10 @@ with tempfile.TemporaryDirectory() as t:
     s, _, _, body = req2("GET", loc2 or f"/case/{cid}", headers=h)
     check("the edited sample is caught as an edited copy of the recorded slip (RED)",
           'class="verdict v-RED"' in body and "RX-DEMO-0812" in body)
+    say = re.search(r'<p class="say"><b>Tell the customer:</b>(.*?)</p>', body)
+    check("  ...with a neutral line for the customer: no accusation in front of the queue",
+          say is not None and not re.search(r"fraud|fake|forg|edit|copy|police", say.group(1), re.I),
+          say.group(1) if say else "no line")
     got = {}
     for smp in app.demo_samples()["samples"]:
         f = smp["fields"]

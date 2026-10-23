@@ -242,7 +242,7 @@ with tempfile.TemporaryDirectory() as t:
     s, loc, _, _ = st_.upload(jpg(whatsapp(orig)), "retake.jpg", path=f"/case/{cid4}/retake")
     s, _, page, _ = st_.get(loc)
     check("  the new photo is checked with the same entries; old hold closed as 'retaken'",
-          loc.split("/")[-1] != cid4 and "OK TO DISPENSE" in page
+          loc.split("/")[-1] != cid4 and "NO CONFLICT FOUND" in page
           and r.db().execute("SELECT status FROM holds WHERE id = ?", (hid4,)).fetchone()[0] == "closed"
           and app.hold_outcome(hid4) == "retaken")
     s, _, page, _ = ph.get("/")
@@ -286,7 +286,7 @@ with tempfile.TemporaryDirectory() as t:
             c.get(loc)
             s, loc2, _, _ = c.post(f"{loc}/check", {"drugs": "Dolo 650, Pan 40", "regn": "00000"})
             s, _, page, _ = c.get(loc2 or loc)
-            out.append("ok" if s == 200 and ("OK TO DISPENSE" in page or "CONFIRM FIRST" in page or "HOLD" in page)
+            out.append("ok" if s == 200 and ("NO CONFLICT FOUND" in page or "CONFIRM FIRST" in page or "HOLD" in page)
                        else f"decision {s}")
         return name, out
 
