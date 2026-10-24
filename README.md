@@ -1,11 +1,93 @@
-# rxcheck: prescription verification triage for Indian pharmacy counters
+# rxcheck: H1 / Schedule X dispensing records and prescription triage for Indian pharmacy counters
 
-A research prototype that helps a pharmacist decide in a second or two whether a prescri
-ption image can be dispensed, needs confirmation, or has failed verification.
+A research prototype for the medicines where a pharmacist carries legal exposure: **Schedule H1, Schedule X / NDPS,
+and other abuse-prone drugs**. For every such sale it keeps a reviewable record of what was checked, who decided,
+and why a sale went ahead or was held. On the way, it triages the slip itself: has this slip been dispensed
+before, was it edited, does the Regn No belong to that doctor, did the clinic sign it.
 
-> **This is a triage tool, not a certificate of authenticity.** A clean result does not prove a doctor issued the prescription, unless the slip carries a clinic-signed issuance code that verified. A failed check is not, by itself, proof of fraud.
+> **A compliance record and a triage aid, not a fraud detector or a certificate of authenticity.** A clean result
+> means nothing contradicts the slip, not that a doctor issued it, unless it carries a clinic-signed code that
+> verified. A held slip is not, by itself, proof of fraud. Nothing here is validated at a real counter yet.
 
-Related documents: [docs/ANALYSIS.md](docs/ANALYSIS.md) (technical overview) · [docs/field-validation.md](docs/field-validation.md) (what evidence is still needed, and how to collect it) · [docs/blog.md](docs/blog.md) (public write-up, draft)
+Related documents: [docs/ANALYSIS.md](docs/ANALYSIS.md) (technical overview) · [docs/field-validation.md](docs/field-validation.md) (what evidence is still needed, and how to collect it) · [docs/refill-tracking.md](docs/refill-tracking.md) (next: quantities and repeats, designed, not built) · [docs/blog.md](docs/blog.md) (public write-up, draft)
+
+## Why compliance first
+
+Selling H1, X or NDPS medicines without a valid prescription is the pharmacist's liability, and a pharmacist asked
+"why did you dispense this?" needs an answer on record. That is a clearer, existing need than "detect fake
+slips", for three reasons:
+
+- **Most counter fraud is not visible in the image.** A new slip for a routine medicine, written convincingly, has
+  nothing to contradict. No image check can settle who wrote it (see *Limits* below).
+- **False alarms are the real cost.** Nobody knows the share of edited or invented slips at a counter, and it is
+  probably small. A tool that holds many genuine slips to catch a few is switched off within a week. So rxcheck
+  holds only where the stakes are high: high-risk medicines, and slips that contradict a record.
+- **The buyer is clear.** A pharmacy owner, a chain or a licensing inspection asks for the record; few ask for a
+  fraud score.
+
+## What it does today
+
+**For high-risk sales (the compliance record)**
+
+| What | How |
+|---|---|
+| Every check is on record | Append-only, hash-chained audit trail: who checked which slip, the verdict and its one-line reason, what was entered and confirmed, and how much of the slip reading staff kept or changed (counts only) |
+| A high-risk sale needs a reason | A high-risk medicine on a new slip, a repeat, an unverified prescriber or a contradiction opens a **hold**. It closes only with an outcome: confirmed with the clinic, refused, unreachable (parked), or dispensed after review |
+| Only a pharmacist decides | Staff sign in with their own PIN. Only a pharmacist can record "confirmed", "checked - dispense" or an override |
+| Overrides are visible and counted | An override needs a written reason and is kept under the pharmacist's name. The counter warns when more than 20% of holds over 14 days were dispensed without the asked-for step, overall and **per person** |
+| NDPS / Schedule X cannot be overridden | Those holds close only with the clinic's confirmation |
+| The doctor's own answer, where possible | An enrolled doctor answers a ping on the phone number from the council register (never from the slip); the signed receipt is stored with the hold, and a denial blocks the sale (simulated service) |
+| The dispensed slip itself | High-risk slips dispensed are kept in an image ledger alongside the H1 register, so a later copy of that slip, edited or not, is recognised |
+| Reports | Audit log with filters and CSV export (pharmacists), `rxcheck stats` per person, the photo-reading report |
+
+The paper **H1 register** stays the legal record: rxcheck does not yet hold the register's quantities and
+repeats. Refill and quantity tracking ([design](docs/refill-tracking.md)) is the next step, for exactly the pattern
+of an H1 slip presented again and again.
+
+**On every slip (the triage)**
+
+| Question | Check |
+|---|---|
+| Dispensed or seen here before? Edited since? | Image ledger for dispensed high-risk slips (edits located); a no-image index of every checked slip ("seen before", what was asked then) |
+| Seen at another pharmacy? | Shared index across member pharmacies, signatures only (**simulated network**) |
+| Is the Regn No this doctor's? | Local registry with sources and coverage (**empty: needs an official ABDM / council integration**) |
+| Did a clinic issue it? | Clinic-signed QR codes, verified with the clinic's key collected in person |
+| Is the medicine what it looks like? | Drug-risk tiers; an unlisted name that looks controlled (spelt like Lonazep, or an -azep / -zolam / -tadol stem) is held like one |
+| Is the entry right? | Look-alike names, ".25", "5.0" and missing strengths must be confirmed; slip reading (OCR, offline) fills the form and asks for a tick on anything uncertain |
+
+Repeats of **routine** medicines are allowed by design (long-term prescriptions are re-presented all the time),
+and the decision says so: "SAME SLIP as RX-… - routine medicines may be repeated; a high-risk medicine on this
+slip would be held". The same slip asking for a high-risk medicine is held for the register check.
+
+## Limits, stated plainly
+
+- **It does not judge whether an image is AI-made.** A fake need not be AI-made, an AI-made one can look perfect,
+  and genuine photos forwarded on WhatsApp lose their metadata and look "processed". rxcheck works from facts a
+  forger does not control: what was dispensed before, whose Regn No it is, who signed the slip, what is being sold.
+- **A convincing new slip for a routine medicine is GREEN.** Only issuance evidence can catch it: a clinic-signed
+  code, or the doctor's answer. Both need clinics and doctors to take part.
+- **A complicit counter defeats a counter tool.** Per-person override alerts exist, but nobody outside the
+  pharmacy receives them yet (a chain office, a regulator or a shared service would have to).
+- **One shop's ledger only knows that shop.** A reused slip goes to the next pharmacy; the shared index is a
+  simulation, and duplicate detection across pharmacies and platforms ultimately belongs in national infrastructure.
+- **Handwriting is mostly not read.** Slip reading works on printed slips (on 50 synthetic slips: 84% of printed
+  medicines filled in right on a new counter, 98% once the counter knows them, **0 wrong values filled in without a
+  tick**). The handwriting score there is typed handwriting-style fonts, not handwriting. A reading takes about
+  10 s on a PC, in the background.
+- **No real data yet.** The registry is empty, the drug list is an illustrative sample, every test image is
+  synthetic, and no pharmacy has used it. The base rate of edited or invented slips, the hold rate and the
+  override rate are all unknown until a shadow pilot ([protocol](docs/field-validation.md)).
+- **A bridge product.** Digital prescriptions (ABDM) will replace paper slips, more slowly in tier-2 clinics. The
+  compliance record outlasts the paper; the image checks do not.
+
+## Intended users and scope
+
+| | |
+|---|---|
+| **Users** | Retail pharmacists and counter staff, initially single pharmacies in tier-2 cities, with one or more billing counters; the pharmacy owner for the records |
+| **In scope** | Hold-and-escalate for high-risk sales with outcomes, roles and per-person override counts; hash-chained audit trail and exports; authenticated doctor confirmation (simulated service); re-use and edit detection; no-image index of every checked slip; hash-only shared index across pharmacies (simulated network); prescriber registry check; clinic-signed issuance codes; drug-risk tiers with look-alike names; confirmation of ambiguous entries; slip reading of photos and PDFs (optional, offline OCR); pre-checking images as they arrive; counter app with staff sign-in; audited data imports; verify, backup and restore; offline operation |
+| **Next** | Refill and quantity tracking for H1 / X repeats ([design](docs/refill-tracking.md)); a shadow pilot; an official registry source |
+| **Out of scope (now)** | Proving issuance for slips without a signed code (needs a call to the clinic); reading handwriting reliably; replacing the statutory H1 register; a production shared-index service (HTTPS, member authentication, key rotation); verifying e-prescription platforms (a PDF is accepted and read, but its text proves no more than a photo); edit detection beyond page 1 of a PDF; clinical appropriateness (interactions, allergies, dosing) |
 
 ## Project structure
 
@@ -13,35 +95,13 @@ Related documents: [docs/ANALYSIS.md](docs/ANALYSIS.md) (technical overview) · 
 |---|---|
 | `app/` | Python verification engine, CLI, counter web app, and optional slip reading (OCR) |
 | `data/` | Empty prescriber registry plus illustrative policy and drug-risk defaults |
-| `docs/` | Technical overview (ANALYSIS.md), field-validation protocol and public write-up |
-| `eval/` | Dataset builder and evaluator; generated datasets and results stay local |
+| `docs/` | Technical overview (ANALYSIS.md), field-validation protocol, refill-tracking design and public write-up |
+| `eval/` | Dataset builders and evaluators; generated datasets and results stay local |
 | `tests/` | Automated checks and synthetic test-image generation |
 | `web/` | Vue/Vite source for the counter UI |
 | `static/` | Committed browser bundle served by the Python app |
 | `site/` | Static landing page for the project |
-
-## Problem
-
-Customers increasingly show prescriptions as phone images, often forwarded on WhatsApp. These images can be AI-generated, edited copies of genuine slips, or genuine slips re-used. Pixel-level "AI detectors" can't settle this:
-
-- a fraudulent prescription need not be AI-made,
-- an AI-made one can look perfect,
-- and genuine images forwarded on WhatsApp lose their metadata and look "processed".
-
-What a pharmacist can act on are facts a forger doesn't control:
-
-- **What has been seen or dispensed before.** Is this the same slip, possibly with edits?
-- **Who the prescriber is.** Does the registration number exist and belong to that doctor?
-- **Who issued this slip.** Did a participating clinic sign it?
-- **What is being sold.** Does this drug, and does this request match what was on the slip?
-
-## Intended users and scope
-
-| | |
-|---|---|
-| **Users** | Retail pharmacists and counter staff, initially single pharmacies in Tier-2 cities, with one or more billing counters |
-| **In scope** | Re-use and edit detection; authenticated doctor confirmation (simulated service); hash-only shared index across pharmacies (simulated network); no-image index of every checked slip; prescriber registry check; clinic-signed issuance codes; drug-risk policy; consistency of requested drugs with the matched record or signed code; confirmation of ambiguous medicine entries; reading the slip photo to fill in the form (optional, offline OCR); pre-checking images as they arrive; counter app with staff sign-in; hold-and-escalate queue; audited data imports; verify, backup and restore; offline operation |
-| **Out of scope (now)** | Proving issuance for slips without a signed code (needs a call to the clinic); reading handwriting reliably; a production shared-index service (HTTPS, member authentication, key rotation); verifying e-prescription platforms (a PDF is accepted and read, but its text proves no more than a photo); edit detection beyond page 1 of a PDF; clinical appropriateness |
+| `demo/` | Synthetic sample slips and the slip reader's scores for the public demo |
 
 ## How it works
 
@@ -458,8 +518,9 @@ python app/rxcheck.py verify [--against D:/offsite/rxcheck-backup-example]   # p
 python app/rxcheck.py restore D:/rxcheck-backups/rxcheck-backup-example
 
 # tests and evaluation
-cd tests && for t in test_robustness test_issuance test_data test_storage test_server test_counter_ux test_eval test_shared test_doctorping test_doctor_screens test_docs test_deploy; do python $t.py || break; done
+cd tests && for t in test_robustness test_issuance test_data test_storage test_server test_counter_ux test_eval test_shared test_doctorping test_doctor_screens test_docs test_deploy test_ocr test_browser; do python $t.py || break; done
 python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk] [--complete-registry]
+python eval/ocr/build_ocr_set.py && python eval/ocr/score.py      # slip reading on 50 labelled synthetic slips
 ```
 
 ## Threat scenarios: status
@@ -529,7 +590,9 @@ python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk]
 | `app/rxcheck.py` | Engine and CLI: `check`, `add`, `watch`, `serve`, `staff`, `holds`, `resolve`, `stats`, `data`, `clinic`, `log`, `backup`, `verify`, `restore` |
 | `app/doctorping.py` | Doctor confirmation: simulated service, enrolment, ping, one-time code, signed receipts |
 | `app/sharedindex.py` | Shared index: keyed signatures, simulated hub, peer verification, `sync` |
-| `app/counter_app.py` | Counter app (browser UI, sign-in, several counters, scheduled backups, lookups, audit log) |
+| `app/counter_app.py` | Counter app (browser UI, sign-in, several counters, scheduled backups, lookups, audit log, photo reading report) |
+| `app/ocr.py` | Slip reading: offline OCR, line parsing, what is filled in and what needs a tick, pilot figures |
+| `app/pdfpages.py` | PDF prescriptions: page images and text layer |
 | `web/` → `static/` | Vue 3 sources (Vite) for the counter app's shortcuts, display controls, lookups and audit log; `static/` is the committed build |
 | `tests/scenarios.py` | Synthetic test images and transformations for counter conditions |
 | `tests/test_robustness.py` | Scenario tests A–F, quality gate, index, decision matrix, a step for every warning, split sale, speed |
@@ -542,9 +605,12 @@ python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk]
 | `tests/test_doctor_screens.py` | Counter screens for doctor confirmation: roles, CSRF, ask / refresh / enter code, approval, denial, read-out code, rate limit, expiry, lockout, not enrolled, service down, history and audit log |
 | `tests/test_doctorping.py` | Doctor confirmation: enrolment from the register, the minimal ping, app-tap and read-out answers, forged and replayed answers, receipts (tampered, other prescription, other pharmacy, stale), denial blocks confirmation (also after 24 h and without the service config), policy, service down, end to end through the CLI |
 | `tests/test_shared.py` | Shared index: keyed signature distances, what the hub stores, clones caught at another pharmacy, stage-2 rejection, minimal disclosure, request authentication, hub-down policy, `sync` late match, scale |
+| `tests/test_ocr.py` | Slip reading: parsing, look-alikes, strengths, ticks, states, PDFs, the report and CSV, the demo's recorded reading |
+| `tests/test_browser.py` | The slip reader in a real browser (installed Edge or Chrome via Playwright): fill, crops, blocked, ticks, decision |
 | `tests/test_docs.py` | README decision table must equal `decide()`, and the step table `next_step()`; no conflicting tables elsewhere |
 | `tests/test_deploy.py` | What may enter the image, first start on an empty disk, admin bootstrap, proxy mode, demo banner, lockout |
 | `Dockerfile`, `docker-entrypoint.sh`, `.dockerignore`, `render.yaml`, `requirements.txt` | Container deployment (see "Public demo deployment") |
-| `eval/` | Set builder and evaluator; generated manifests, images, and results are local-only |
+| `eval/` | Set builders and evaluators (`eval/ocr/` for slip reading); generated manifests, images, and results are local-only |
+| `demo/` | The public demo's synthetic sample slips, the recorded reading, and the slip reader's scores |
 | `data/` | Empty prescriber registry, illustrative drug-risk list, policy switches |
 | `ledger/`, `inbox/`, `reports/`, `samples/` | Local runtime or private dataset directories; excluded from Git |

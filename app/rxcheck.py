@@ -1883,6 +1883,11 @@ def reason(rep):
             return ("First time this slip is seen - a valid Regn No does not prove the doctor wrote it; "
                     "confirm issuance for the high-risk medicine")
         return "Needs confirmation for the high-risk medicine"
+    if f.get("repeat") and rep["findings"]:
+        # a re-presented slip is never silent: GREEN only because what is asked for is routine, and the screen
+        # says so - the same slip with a high-risk medicine on it is held (a repeat needs the H1 register check)
+        return (rep["findings"][0] + " - routine medicines may be repeated; a high-risk medicine on this slip "
+                "would be held for the register check")
     if f["issuance"] == "verified":
         return "No check failed; issuance verified by the clinic's signature"
     return "No check failed (issuance not verified - normal for routine medicines)"

@@ -220,7 +220,7 @@
       "image": "resent.jpg",
       "label": "Re-sent on WhatsApp",
       "expect": "GREEN",
-      "what": "The same recorded slip, photographed again and forwarded",
+      "what": "The recorded slip again, routine medicines only: recognised as a repeat, and allowed",
       "fields": {
         "drugs": "Dolo 650, Pan 40",
         "regn": "DEMO-1001",

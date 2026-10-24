@@ -36,7 +36,7 @@ SAMPLES = {
          "expect": "RED", "what": "The recorded slip with a drug line added by hand",
          "fields": {"drugs": "Alprax 0.5", "regn": "DEMO-1001", "doctor": "Dr. Demo Sample", "patient": "Sample Patient"}},
         {"key": "resent", "image": "resent.jpg", "label": "Re-sent on WhatsApp",
-         "expect": "GREEN", "what": "The same recorded slip, photographed again and forwarded",
+         "expect": "GREEN", "what": "The recorded slip again, routine medicines only: recognised as a repeat, and allowed",
          "fields": {"drugs": "Dolo 650, Pan 40", "regn": "DEMO-1001", "doctor": "Dr. Demo Sample", "patient": "Sample Patient"}},
         {"key": "new", "image": "new.jpg", "label": "New slip, high-risk drug",
          "expect": "AMBER", "what": "A slip never seen before, with a high-risk medicine on it",
