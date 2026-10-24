@@ -436,5 +436,14 @@ if have_engine and FONT.is_file():
 else:
     print("[SKIP] real-engine read: rapidocr_onnxruntime not installed (optional) or no test font")
 
+# the public demo replays a recorded reading of demo/printed.jpg: it must be what the engine reads from that image
+if have_engine:
+    demo = json.loads((ROOT / "demo" / "samples.json").read_text(encoding="utf-8"))
+    rec = next(s for s in demo["samples"] if s["key"] == "printed")["reading"]["segments"]
+    fresh = ocr.read_segments(ocr.load(ROOT / "demo" / "printed.jpg"))
+    check("the demo's recorded reading is what the engine reads from demo/printed.jpg (else: make_demo_samples.py)",
+          [x["text"] for x in rec] == [t for _, t, _ in fresh]
+          and all(abs(x["conf"] - c) < 0.01 for x, (_, _, c) in zip(rec, fresh)))
+
 print("\nALL PASS" if ok else "\nSOME CHECKS FAILED")
 sys.exit(0 if ok else 1)

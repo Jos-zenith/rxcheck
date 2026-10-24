@@ -89,6 +89,10 @@ def items():
 
 
 def main():
+    if "--summary" in sys.argv:   # rebuild demo/ocr-results.json from the last scoring run, without reading again
+        rows = json.loads((SET / "results.json").read_text(encoding="utf-8"))["rows"]
+        report(rows)
+        return write_summary(rows)
     only = None
     if "--only" in sys.argv:
         only = set(sys.argv[sys.argv.index("--only") + 1].split(","))
@@ -131,6 +135,33 @@ def main():
     (SET / "results.json").write_text(json.dumps({"scored_on": today.isoformat(), "rows": rows}, indent=1),
                                       encoding="utf-8")
     report(rows)
+    if not only:
+        write_summary(rows)
+
+
+LABELS = {"printed": "Printed", "lighting": "Poor lighting", "handwriting-font": "Handwriting-style font",
+          "pdf-text": "PDF with text layer", "pdf-scan": "Scanned PDF"}
+
+
+def write_summary(rows):
+    """demo/ocr-results.json: the figures the public demo shows - counts only, no slip content. Synthetic slips
+    only; a real-slip row is never put on the public page."""
+    rows = [x for x in rows if x["synthetic"]]
+    out = []
+    for k in [k for k in LABELS if any(x["kind"] == k for x in rows)] + ["ALL"]:
+        rs = [x for x in rows if k == "ALL" or x["kind"] == k]
+        t = {c: {f: sum(x[c][f] for x in rs) for f in rs[0][c]} for c in ("new", "established")}
+        out.append({"kind": k, "label": LABELS.get(k, "All"), "slips": len(rs), "medicines": t["new"]["med_expected"],
+                    "new_pct": round(100 * t["new"]["med_filled_ok"] / t["new"]["med_expected"]),
+                    "established_pct": round(100 * t["established"]["med_filled_ok"] / t["established"]["med_expected"]),
+                    "silent": t["new"]["med_silent"] + t["new"]["hdr_silent"],
+                    "silent_established": t["established"]["med_silent"] + t["established"]["hdr_silent"]})
+    scored = json.loads((SET / "results.json").read_text(encoding="utf-8")).get("scored_on")
+    data = {"_note": "Written by eval/ocr/score.py. Synthetic slips only; not evidence of accuracy on real "
+                     "prescriptions. 'Handwriting-style font' is typed text in a handwriting font, not handwriting.",
+            "scored_on": scored, "rows": out}
+    (ROOT / "demo" / "ocr-results.json").write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+    print("wrote demo/ocr-results.json")
 
 
 def report(rows):

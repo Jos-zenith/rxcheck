@@ -10,6 +10,199 @@
   },
   "samples": [
     {
+      "key": "printed",
+      "image": "printed.jpg",
+      "label": "Printed slip, read by OCR",
+      "expect": "AMBER",
+      "what": "The reading fills the form; one smudged line is left for you to check",
+      "fields": {
+        "patient": "Sample Patient"
+      },
+      "after_reading": {
+        "drugs": "Dolo 650, Pan 40, Alprax 0.25",
+        "regn": "DEMO-1001",
+        "doctor": "Dr. Demo Sample",
+        "rx_date": "2026-10-20"
+      },
+      "reading": {
+        "engine": "rapidocr_onnxruntime 1.4.4",
+        "recorded_on": "2026-10-24",
+        "ms": 11743,
+        "segments": [
+          {
+            "box": [
+              82,
+              71,
+              673,
+              117
+            ],
+            "text": "SYNTHETIC TEST CLINIC",
+            "conf": 0.9666
+          },
+          {
+            "box": [
+              79,
+              136,
+              811,
+              169
+            ],
+            "text": "Demo Road, Sample Nagar - NOT A REAL PRESCRIPTION",
+            "conf": 0.9819
+          },
+          {
+            "box": [
+              80,
+              211,
+              512,
+              250
+            ],
+            "text": "Dr. Demo Sample, MBBS",
+            "conf": 0.9571
+          },
+          {
+            "box": [
+              78,
+              262,
+              433,
+              300
+            ],
+            "text": "Regn No: DEMO-1001",
+            "conf": 0.9636
+          },
+          {
+            "box": [
+              862,
+              323,
+              1160,
+              360
+            ],
+            "text": "Date: 20/10/2026",
+            "conf": 0.9774
+          },
+          {
+            "box": [
+              79,
+              384,
+              439,
+              420
+            ],
+            "text": "Name: Sample Patient",
+            "conf": 0.9919
+          },
+          {
+            "box": [
+              476,
+              383,
+              684,
+              423
+            ],
+            "text": "Age: 34 / M",
+            "conf": 0.9656
+          },
+          {
+            "box": [
+              75,
+              457,
+              149,
+              512
+            ],
+            "text": "Rx",
+            "conf": 0.9746
+          },
+          {
+            "box": [
+              120,
+              558,
+              490,
+              600
+            ],
+            "text": "1. Tab. Dolo 650 mg",
+            "conf": 0.994
+          },
+          {
+            "box": [
+              537,
+              556,
+              855,
+              602
+            ],
+            "text": "1-0-1 x 5 days",
+            "conf": 0.9781
+          },
+          {
+            "box": [
+              118,
+              649,
+              459,
+              691
+            ],
+            "text": "2. Tab. Pan 40 mg",
+            "conf": 0.9982
+          },
+          {
+            "box": [
+              510,
+              654,
+              853,
+              687
+            ],
+            "text": "1-0-0 before food",
+            "conf": 0.9437
+          },
+          {
+            "box": [
+              118,
+              737,
+              533,
+              781
+            ],
+            "text": "3. Tab. Alprax 0.25 mg",
+            "conf": 0.9605
+          },
+          {
+            "box": [
+              575,
+              738,
+              704,
+              778
+            ],
+            "text": "0-0-1",
+            "conf": 0.9914
+          },
+          {
+            "box": [
+              133,
+              826,
+              583,
+              874
+            ],
+            "text": "4.Tab.Metformin5oomg",
+            "conf": 0.8904
+          },
+          {
+            "box": [
+              587,
+              831,
+              742,
+              868
+            ],
+            "text": "1-0-1",
+            "conf": 0.9681
+          },
+          {
+            "box": [
+              79,
+              1657,
+              634,
+              1686
+            ],
+            "text": "SYNTHETIC-FOR SOFTWARE TESTING ONLY",
+            "conf": 0.9499
+          }
+        ]
+      }
+    },
+    {
       "key": "edited",
       "image": "edited.jpg",
       "label": "Edited copy",

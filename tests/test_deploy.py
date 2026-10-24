@@ -7,6 +7,7 @@ import fnmatch
 import http.client
 import json
 import os
+import time
 import re
 import subprocess
 import sys
@@ -52,7 +53,8 @@ check(f"image build context is code + default data only ({', '.join(inside)})",
                       "docker-entrypoint.sh",
                       "data/drug_risk.json", "data/policy.json", "data/registry.json",
                       "static/app.js", "static/app.css",
-                      "demo/samples.json", "demo/reference.jpg", "demo/edited.jpg", "demo/resent.jpg", "demo/new.jpg"})
+                      "demo/samples.json", "demo/reference.jpg", "demo/edited.jpg", "demo/resent.jpg", "demo/new.jpg",
+                      "demo/printed.jpg", "demo/ocr-results.json"})
 check("no image, ledger, report or key file can enter the image (only the synthetic demo slips)",
       not [f for f in inside if f.split("/")[0] in ("samples", "ledger", "inbox", "reports", "eval")
            or (f.endswith((".jpg", ".png")) and not f.startswith("demo/")) or f.endswith((".db", ".pem"))])
@@ -180,9 +182,50 @@ with tempfile.TemporaryDirectory() as t:
     check("  ...with a neutral line for the customer: no accusation in front of the queue",
           say is not None and not re.search(r"fraud|fake|forg|edit|copy|police", say.group(1), re.I),
           say.group(1) if say else "no line")
+    # ---- the printed sample: the cloud has no OCR engine; the recorded reading is replayed through the live pipeline
+    import ocr
+    os.environ["RXCHECK_OCR"] = "on"
+    real_available, ocr.available = ocr.available, (lambda: False)
+    s, _, _, body = req2("GET", "/", headers=h)
+    check("home page: 'Slip reading not installed', and says the Printed slip replays a recorded reading",
+          'data-ocr-status="missing"' in body and "Slip reading not installed" in body and "replays a reading" in body
+          and "takes about two seconds." in body)
+    check("  'What this demo includes' and the reader's scores on the synthetic set, with their caveat",
+          "What this demo includes" in body and "How the slip reader scored" in body and "Silent errors" in body
+          and "not evidence of accuracy on real prescriptions" in body and "python app/ocr.py slip.jpg" in body)
+    s, loc, _, _ = req2("POST", "/demo/try", urlencode({"key": "printed", "csrf": csrf}), h)
+    pcid = loc.rsplit("/", 1)[-1]
+    s, _, _, body = req2("GET", loc, headers=h)
+    check("printed sample opens 'Reading', nothing filled in yet", 'data-ocr-state="reading"' in body
+          and 'value="Dolo' not in body)
+    for _ in range(100):
+        s, _, _, txt = req2("GET", f"/case/{pcid}/ocr", headers=h)
+        data = json.loads(txt)
+        if data["status"] != "pending":
+            break
+        time.sleep(0.1)
+    printed = next(x for x in app.demo_samples()["samples"] if x["key"] == "printed")
+    check("  the recorded reading fills in what the tile promises, without an engine", data["status"] == "done"
+          and data["values"] == printed["after_reading"], data.get("values"))
+    check("  ...says it is a recorded reading; the smudged line is shown as read, not filled in, with its cut-out",
+          "Recorded reading." in data["panel"] and "Metformin5oomg" in data["panel"]
+          and "Metformin" not in data["values"]["drugs"] and "/crop/" in data["panel"]
+          and 'data-ocr-state="confirm"' in data["panel"], data["panel"][:400])
+    fields = dict(printed["after_reading"], csrf=csrf)
+    s, _, _, body = req2("POST", f"/case/{pcid}/check", urlencode(fields), h)
+    n = body.count('name="confirm"')
+    check("  sent as filled in -> 'Check blocked' until each doubtful reading is ticked", 'data-ocr-state="blocked"' in body
+          and n >= 2, n)
+    s, loc3, _, _ = req2("POST", f"/case/{pcid}/check", urlencode({**fields, "confirm": [str(i) for i in range(n)]},
+                                                                  doseq=True), h)
+    s, _, _, body = req2("GET", loc3 or f"/case/{pcid}", headers=h)
+    check("  ...ticked -> the decision the tile promises (AMBER: a new slip with a high-risk medicine)",
+          f'class="verdict v-{printed["expect"]}"' in body)
+    ocr.available = real_available
+    os.environ["RXCHECK_OCR"] = "off"
     got = {}
     for smp in app.demo_samples()["samples"]:
-        f = smp["fields"]
+        f = {**smp.get("after_reading", {}), **smp["fields"]}
         rep = r.run_check(app.DEMO_DIR / smp["image"], f["drugs"], f.get("regn"), f.get("doctor"), draw=False)
         got[smp["key"]] = (max(rep["verdicts"].values(), key=r.ORDER.index), smp["expect"])
     check("every demo sample gives the verdict its tile promises", all(a == b for a, b in got.values()), str(got))

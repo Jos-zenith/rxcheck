@@ -16,3 +16,4 @@ app/*
 !data/*.json
 !demo/*.jpg
 !demo/samples.json
+!demo/ocr-results.json

@@ -275,12 +275,15 @@ def read_pages(pages, known, is_high=lambda text: False, today=None, strengths=N
         for i, pg in enumerate(pages):
             if pg.get("lines"):
                 segs, src = [(tuple(ln["box"]), ln["text"], ln["conf"]) for ln in pg["lines"]], "text"
+            elif pg.get("recorded"):   # the public demo: a reading the engine made earlier, replayed
+                segs, src = [(tuple(x["box"]), x["text"], x["conf"]) for x in pg["recorded"]["segments"]], "ocr"
+                engines.add("recorded")
             elif available():
                 segs, src = read_segments(load(pg["path"])), "ocr"
             else:
                 unread.append(i + 1)
                 continue
-            engines.add("pdf-text" if src == "text" else "rapidocr")
+            engines.add("pdf-text" if src == "text" else "recorded" if pg.get("recorded") else "rapidocr")
             lines += [{**ln, "page": i, "src": src} for ln in group_lines(segs)]
         res = parse(lines, known, is_high, today, strengths)
     except Exception as ex:   # the engine, a model file, memory: none of it may stop a check

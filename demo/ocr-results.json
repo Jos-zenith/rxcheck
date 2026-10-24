@@ -1,0 +1,66 @@
+{
+ "_note": "Written by eval/ocr/score.py. Synthetic slips only; not evidence of accuracy on real prescriptions. 'Handwriting-style font' is typed text in a handwriting font, not handwriting.",
+ "scored_on": "2026-10-24",
+ "rows": [
+  {
+   "kind": "printed",
+   "label": "Printed",
+   "slips": 30,
+   "medicines": 103,
+   "new_pct": 84,
+   "established_pct": 98,
+   "silent": 0,
+   "silent_established": 0
+  },
+  {
+   "kind": "lighting",
+   "label": "Poor lighting",
+   "slips": 5,
+   "medicines": 14,
+   "new_pct": 57,
+   "established_pct": 86,
+   "silent": 0,
+   "silent_established": 0
+  },
+  {
+   "kind": "handwriting-font",
+   "label": "Handwriting-style font",
+   "slips": 10,
+   "medicines": 26,
+   "new_pct": 54,
+   "established_pct": 81,
+   "silent": 0,
+   "silent_established": 0
+  },
+  {
+   "kind": "pdf-text",
+   "label": "PDF with text layer",
+   "slips": 3,
+   "medicines": 21,
+   "new_pct": 100,
+   "established_pct": 100,
+   "silent": 0,
+   "silent_established": 0
+  },
+  {
+   "kind": "pdf-scan",
+   "label": "Scanned PDF",
+   "slips": 2,
+   "medicines": 16,
+   "new_pct": 69,
+   "established_pct": 88,
+   "silent": 0,
+   "silent_established": 0
+  },
+  {
+   "kind": "ALL",
+   "label": "All",
+   "slips": 50,
+   "medicines": 180,
+   "new_pct": 78,
+   "established_pct": 94,
+   "silent": 0,
+   "silent_established": 0
+  }
+ ]
+}

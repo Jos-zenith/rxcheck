@@ -50,7 +50,36 @@ def demo_slips():
     private pair in samples/local - so tests/test_deploy.py can regenerate and compare every image in demo/."""
     original, _ = synthetic_samples()
     return {"reference": original, "edited": added_line(original), "resent": whatsapp(original),
-            "new": other_slip(7)}
+            "new": other_slip(7), "printed": printed_slip()}
+
+
+def printed_slip():
+    """A computer-printed synthetic slip for the demo's slip-reading sample. OpenCV's own font, so the image is
+    byte-identical on every machine. Line 4 is smudged (as on a slip that got wet): the reader cannot read it
+    clearly, which is the case the demo has to show."""
+    W, H = 1240, 1754
+    img = np.full((H, W, 3), 248, np.uint8)
+    simplex, duplex = cv2.FONT_HERSHEY_SIMPLEX, cv2.FONT_HERSHEY_DUPLEX
+
+    def put(canvas, text, x, y, scale=1.0, thick=2, font=simplex):
+        cv2.putText(canvas, text, (x, y), font, scale, (25, 25, 25), thick, cv2.LINE_AA)
+
+    put(img, "SYNTHETIC TEST CLINIC", 80, 110, 1.6, 3, duplex)
+    put(img, "Demo Road, Sample Nagar - NOT A REAL PRESCRIPTION", 80, 160, 0.8)
+    put(img, "Dr. Demo Sample, MBBS", 80, 240, 1.1)
+    put(img, "Regn No: DEMO-1001", 80, 290)
+    put(img, "Date: 20/10/2026", 860, 350)
+    put(img, "Name: Sample Patient   Age: 34 / M", 80, 410)
+    put(img, "Rx", 80, 500, 1.6, 3, duplex)
+    put(img, "1. Tab. Dolo 650 mg   1-0-1  x 5 days", 120, 590, 1.1)
+    put(img, "2. Tab. Pan 40 mg   1-0-0 before food", 120, 680, 1.1)
+    put(img, "3. Tab. Alprax 0.25 mg   0-0-1", 120, 770, 1.1)
+    put(img, "SYNTHETIC - FOR SOFTWARE TESTING ONLY", 80, 1680, 0.8)
+    line = np.full_like(img, 248)
+    put(line, "4. Tab. Metfornin 500 mg   1-0-1", 120, 860, 1.1)
+    smudged = cv2.GaussianBlur(line[815:890, 100:800].astype(np.float32), (0, 0), 4.0) * 0.7 + 248 * 0.3
+    img[815:890, 100:800] = np.clip(smudged, 0, 255).astype(np.uint8)
+    return img
 
 
 def load_samples():

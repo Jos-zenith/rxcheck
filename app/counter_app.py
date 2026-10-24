@@ -123,7 +123,9 @@ def save_case(cid, data):
     tmp.replace(meta)
 
 
-def new_case(data, suffix, origin, read=True):
+def new_case(data, suffix, origin, read=True, recorded=None):
+    """A new case from an uploaded photo or PDF. recorded: a demo sample's recorded reading, replayed instead of
+    OCR (the public deployment has no engine)."""
     if len(data) > MAX_UPLOAD:
         raise HttpError(413, "File is larger than 15 MB. Ask for a photo of the slip, or only its pages.")
     pdf = suffix == ".pdf" or pdfpages.is_pdf(data)
@@ -157,7 +159,7 @@ def new_case(data, suffix, origin, read=True):
     if not read:
         why = "retake"
     elif origin.startswith("demo:"):
-        why = "demo"
+        why = None if recorded and ocr.enabled() else "demo"
     elif not ocr.enabled():
         why = "switched off"
     elif not ocr.available() and not all(text):
@@ -168,8 +170,11 @@ def new_case(data, suffix, origin, read=True):
                     "hold": None, "recorded": None, "pages": len(text), "source": "pdf" if pdf else "photo",
                     "ocr": {"status": "off", "why": why} if why else {"status": "pending"}})
     if not why:
-        pages_in = [{"path": page_path(cid, i, path), "lines": lines} for i, lines in enumerate(text)]
-        threading.Thread(target=read_case, args=(cid, pages_in, known_drug_names()), daemon=True).start()
+        pages_in = [{"path": page_path(cid, i, path), "lines": lines, "recorded": recorded if i == 0 else None}
+                    for i, lines in enumerate(text)]
+        # a replay takes a few seconds, like a reading, so the visitor sees the form fill in
+        delay = min(4.0, (recorded.get("ms") or 3000) / 1000) if recorded else 0
+        threading.Thread(target=read_case, args=(cid, pages_in, known_drug_names(), delay), daemon=True).start()
     return cid
 
 
@@ -195,8 +200,9 @@ def known_drug_names():
     return names, strengths
 
 
-def read_case(cid, pages, known):
+def read_case(cid, pages, known, delay=0):
     """Background: read the slip and store what it read on the case. A failure only means staff type as before."""
+    time.sleep(delay)
     names, strengths = known
     res = ocr.read_pages(pages, names, lambda text: r.drug_risk(text)[0] == "high", strengths=strengths)
     with STATE.case_lock:
@@ -334,8 +340,13 @@ th{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mu
 .ocr p{margin:4px 0}.ocr-list{list-style:none;padding-left:0;margin:8px 0 2px}
 .ocr-list li{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:8px 0}
 img.crop{display:block;max-width:100%;max-height:72px;border:var(--bw) solid var(--line);border-radius:6px;background:#fff}
-.issues img.crop{margin:4px 0 6px 28px}
+.issues img.crop{margin:4px 0 6px 28px;max-width:calc(100% - 28px)}
 .s-quiet{background:var(--bg);color:var(--ink);border-color:var(--line)}.ocr .pill{margin-right:6px}
+.reading-status .pill{margin-right:6px}.demo-about pre{overflow-x:auto;padding:12px;border-radius:10px;background:var(--bg);
+border:var(--bw) solid var(--line);font-size:.88rem}table.compact td,table.compact th{padding:6px 8px}
+table.compact caption{text-align:left;margin-bottom:6px}
+table.compact tbody th{text-transform:none;letter-spacing:0;font-size:inherit;color:var(--ink);font-weight:600}
+.demo-about h3{margin:20px 0 8px}.scroll{overflow-x:auto}
 .today{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .today div{padding:10px 12px;border-radius:10px;background:var(--card);border:var(--bw) solid var(--line);color:var(--muted);font-size:.86rem;line-height:1.25}
 .today b{display:block;font-size:1.7rem;color:var(--ink);line-height:1.1;margin-bottom:2px}
@@ -551,15 +562,73 @@ def home_page(user):
     alerts = holds + (backup.replace('<p class="warn">', '<p class="notice notice-red">') if 'class="warn"' in backup else "")
     status = "" if 'class="warn"' in backup else f'<section class="card">{backup}</section>'
     return page("Counter", f"""{alerts}{demo_panel(user)}<div class="home"><section class="card hero" id="check"><h1>Check a prescription</h1>
-<p class="muted">Photo of the paper slip, the image the customer forwarded, or a PDF. Takes about two seconds.</p>
+<p class="muted">Photo of the paper slip, the image the customer forwarded, or a PDF.</p>{reading_status()}
 <form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
 <label for="image" class="drop"><span class="drop-title">Prescription photo or PDF {kbd("Mod+U")}</span>
 <span class="muted">Choose a file or drop it here<span class="js-only">, or paste it with Ctrl+V - the check starts by
  itself</span></span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
  required data-shortcut="upload" aria-keyshortcuts="Control+U Meta+U">
 <p><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Check prescription</button>{kbd("Mod+Enter")}</p></form></section>
-<div class="side">{today_panel(user)}{activity_panel(user)}</div></div>
+<div class="side">{today_panel(user)}{activity_panel(user)}</div></div>{demo_about() if DEMO and demo_ready() else ""}
 <section class="card"><h2>Received on WhatsApp</h2>{inbox}</section>{status}""", user, refresh=60)
+
+
+def reading_status():
+    """Next to the photo field: whether this counter reads the slip, so nobody expects what is not there."""
+    if not ocr.enabled():
+        state, label, cls = "off", "Slip reading switched off", "s-quiet"
+        text = "The check takes about two seconds; staff type the medicines from the slip."
+    elif ocr.available():
+        state, label, cls = "on", "Slip reading on", "v-GREEN"
+        text = ("The check takes about two seconds. Reading the slip to fill in the form takes 5-15 s more, on this "
+                "PC; what it is unsure of is shown for you to check.")
+    else:
+        state, label, cls = "missing", "Slip reading not installed", "s-quiet"
+        text = "The check takes about two seconds; staff type the medicines from the slip."
+        if DEMO:
+            text = ("The check takes about two seconds. This public demo has no OCR engine, so your own photos are "
+                    "not read: the <b>Printed slip</b> sample below replays a reading recorded with the engine.")
+    return (f'<p class="reading-status" data-ocr-status="{state}"><span class="pill {cls}">{label}</span> '
+            f'{text if "<b>" in text else esc(text)}</p>')
+
+
+def ocr_results():
+    """demo/ocr-results.json (eval/ocr/score.py): the slip reader on the synthetic labelled set."""
+    try:
+        data = json.loads((DEMO_DIR / "ocr-results.json").read_text(encoding="utf-8"))
+        return data if isinstance(data.get("rows"), list) and data["rows"] else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def demo_about():
+    """Public demo: what it shows and what it does not, how the reader scored, and how to run it with OCR."""
+    res = ocr_results()
+    results = ""
+    if res:
+        rows = "".join(f'<tr><th scope="row">{esc(x["label"])}</th><td>{x["slips"]}</td><td>{x["new_pct"]}%</td>'
+                       f'<td>{x["established_pct"]}%</td><td>{x["silent"] + x["silent_established"]}</td></tr>'
+                       for x in res["rows"])
+        results = (f'<h3>How the slip reader scored</h3><div class="scroll"><table class="compact"><caption class="muted">50 synthetic slips, '
+                   f'scored {esc(res.get("scored_on") or "")}. Medicines filled in exactly right on a new counter (only '
+                   f'the drug list on file) / an established one (every medicine dispensed before). Silent errors = '
+                   f'filled in wrong with no tick asked.</caption><thead><tr><th scope="col">Slips</th>'
+                   f'<th scope="col">n</th><th scope="col">New</th><th scope="col">Established</th>'
+                   f'<th scope="col">Silent errors</th></tr></thead><tbody>{rows}</tbody></table></div>'
+                   f'<p class="hint">Synthetic slips, not evidence of accuracy on real prescriptions. The handwriting '
+                   f'row is typed text in handwriting-style fonts - far tidier than a doctor\'s pen. Real handwriting '
+                   f'is mostly not read.</p>')
+    return (f'<section class="card demo-about" aria-labelledby="about-h"><h2 id="about-h">What this demo includes</h2>'
+            f'<ul><li><b>The checks</b> on synthetic slips: an edited copy of a recorded slip, the same slip re-sent, '
+            f'a new slip with a high-risk medicine.</li>'
+            f'<li><b>Slip reading, replayed:</b> the Printed slip sample fills the form from a reading recorded with the '
+            f'OCR engine, leaves the smudged line for you, and asks for ticks before the check.</li>'
+            f'<li><b>The counter around it:</b> holds and call-backs, who did what, the audit log, today\'s figures.</li>'
+            f'<li><b>Not here:</b> live OCR of your own photos (needs a PC: about 10 s a slip), real doctors, real '
+            f'registry data, drug interaction or allergy checks.</li></ul>{results}'
+            f'<h3>Run it with live slip reading</h3><pre><code>pip install -r requirements.txt -r requirements-ocr.txt\n'
+            f'pip install --no-deps rapidocr_onnxruntime==1.4.4\npython app/ocr.py slip.jpg     # one photo\n'
+            f'python app/rxcheck.py serve        # the counter</code></pre></section>')
 
 
 def demo_panel(user):
@@ -577,7 +646,8 @@ def demo_panel(user):
         for s in meta["samples"] if (DEMO_DIR / s["image"]).is_file())
     return (f'<section class="card demo-try" aria-labelledby="demo-h"><h2 id="demo-h">Try it with a sample slip</h2>'
             f'<p>This public demo has one slip on record: <b>{esc(ref["id"])}</b>, dispensed {esc(ref["dispensed"])}. '
-            f'Each sample below is a synthetic test image - pick one and the medicines are filled in for you.</p>'
+            f'Each sample below is a synthetic test image. The Printed slip is read by OCR (a recorded reading); '
+            f'for the others the medicines are filled in for you.</p>'
             f'<div class="samples">{tiles}</div></section>')
 
 
@@ -616,7 +686,7 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
     if max(v.values(), key=r.ORDER.index) != "GREEN":
         pre_line += " " + plain(pre.get("reason", ""))
     err = f'<p class="warn">{esc(error)}</p>' if error else ""
-    return page("Enter medicines", f"""<section class="card"><h1>What is the customer buying?</h1>
+    return page("Enter medicines", f"""<div class="decision"><div><section class="card"><h1>What is the customer buying?</h1>
 <p class="muted">{esc(pre_line)}</p>{note}{err}{"" if signed else ocr_panel(cid, read, issues)}{pdf_note(case)}
 <form method="post" action="/case/{cid}/check" data-primary>{csrf_field(user)}
 <label for="drugs">Medicines and strengths being sold (as on the slip)</label>
@@ -636,7 +706,7 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
  autocomplete="off"></div>
 {issue_html}<p><button type="submit" aria-keyshortcuts="Control+Enter Meta+Enter">Get decision</button>{kbd("Mod+Enter")}</p>
 </form></section>
-<section class="card"><h2>The slip</h2><img class="evidence" src="/img/{cid}" alt="Prescription image as received">{more_pages(cid, case)}</section>""", user)
+</div><div class="d-side"><section class="card"><h2>The slip</h2><img class="evidence" src="/img/{cid}" alt="Prescription image as received">{more_pages(cid, case)}</section></div></div>""", user)
 
 
 def pdf_note(case):
@@ -725,11 +795,16 @@ def ocr_panel(cid, read, issues=None):
             f'<p>{chip}<b>Nothing could be filled in from the slip{pages}.</b> Type the medicines from the slip.</p>')
     unread = (f'<p class="hint">Page(s) {", ".join(str(p) for p in read["unread"])} could not be read: photo reading '
               f'is not installed, and the page has no text layer.</p>' if read.get("unread") else "")
-    unclear = "".join(f'<li>{crop_img(cid, u.get("crop"), u["text"])}<span>Read as <b>{esc(u["text"])}</b>: '
-                      f'{esc(u["why"])}. Not filled in - type it if it is being sold.</span></li>'
+    # an unclear line is shown as the engine read it, typos and all: the cut-out next to it is what to go by
+    unclear = "".join(f'<li>{crop_img(cid, u.get("crop"), u["text"])}<span>Read as <b>{esc(u.get("raw") or u["text"])}'
+                      f'</b>: {esc(u["why"])}. Not filled in - type it from the slip if it is being sold.</span></li>'
                       for u in read.get("unclear", []))
     unclear = f'<ul class="ocr-list">{unclear}</ul>' if unclear else ""
-    return f'<div {attrs}>{head}{unread}{unclear}</div>'
+    replay = ('<p class="hint"><b>Recorded reading.</b> Slip reading is not installed on this public demo, so this '
+              'sample replays what the OCR engine read from this same image on a PC. Everything after that - what is '
+              'filled in, what needs a tick, the check - runs here, live.</p>'
+              if "recorded" in (read.get("engine") or "") else "")
+    return f'<div {attrs}>{head}{replay}{unread}{unclear}</div>'
 
 
 def decision_page(user, cid, case, error="", notice=""):
@@ -1514,7 +1589,7 @@ class Handler(BaseHTTPRequestHandler):
             src = DEMO_DIR / sample["image"] if sample else None
             if not src or Path(sample["image"]).name != sample["image"] or not src.is_file():
                 raise HttpError(404, "That sample is not available")
-            cid = new_case(src.read_bytes(), src.suffix.lower(), f"demo:{key}")
+            cid = new_case(src.read_bytes(), src.suffix.lower(), f"demo:{key}", recorded=sample.get("reading"))
             with STATE.case_lock:
                 _, case = load_case(cid)
                 case["prefill"] = {k: str(v) for k, v in (sample.get("fields") or {}).items()}
