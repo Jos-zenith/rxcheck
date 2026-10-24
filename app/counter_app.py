@@ -437,6 +437,59 @@ kbd[data-keys]{margin-left:8px;font-size:.85em;opacity:.95}.hint{color:var(--mut
 .big-mark{width:52px;height:52px;font-size:1.3rem;border-radius:14px;margin-bottom:14px}
 label.tick{font-weight:400;display:flex;gap:8px;align-items:flex-start}
 .say{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:var(--bg);color:var(--ink)}
+.home{align-items:stretch}.home-col{display:flex;flex-direction:column;min-width:0}
+.home-col>.card{margin-bottom:16px}.home-col>.card:last-child{flex:1 1 auto}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px}
+.card-head h2{margin:0;font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);display:flex;gap:8px;align-items:center}
+.card-head a{font-size:.88rem;font-weight:600}
+.card-head .count{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:99px;
+background:var(--amber);color:var(--amber-bg);font-size:.78rem;letter-spacing:0}
+.trend{margin-top:16px;padding-top:14px;border-top:var(--bw) solid var(--line)}
+.trend-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px 12px;margin-bottom:6px}
+.trend-head h3{margin:0;font-size:.9rem}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}.sw{display:inline-block;width:10px;height:10px;border-radius:3px}
+.s-GREEN{background:#0ca30c}.s-AMBER{background:#fab219}.s-RED{background:#d03b3b}
+.plot{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.tcol{position:relative;display:flex;flex-direction:column;align-items:stretch}
+.area{height:116px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
+border-bottom:var(--bw) solid var(--line)}
+.bar{display:block;max-width:100%}
+.cap{font-size:.78rem;font-weight:700;color:var(--ink);line-height:1;margin-bottom:4px}
+.day{text-align:center;font-size:.74rem;color:var(--muted);padding-top:4px}.is-today .day{color:var(--ink);font-weight:700}
+.plot:hover .tcol:not(:hover) .bar{opacity:.4}
+.tcol:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);
+z-index:5;white-space:nowrap;padding:5px 9px;border-radius:7px;background:var(--ink);color:var(--card);font-size:.78rem;
+font-weight:600;pointer-events:none}
+.tcol:nth-child(-n+2):hover::after{left:0;transform:none}.tcol:nth-child(n+6):hover::after{left:auto;right:0;transform:none}
+.trend-empty{position:absolute;inset:0 0 24px;display:grid;place-items:center;margin:0;padding:0 12px;text-align:center;
+color:var(--muted);font-size:.88rem}
+.insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0}
+.insights div{padding:10px 12px;border-radius:10px;background:var(--bg);border:var(--bw) solid var(--line)}
+.insights dt{font-size:.76rem;color:var(--muted);font-weight:600;line-height:1.25}
+.insights dd{margin:4px 0 0;font-size:.82rem;color:var(--muted)}.insights dd b{font-size:1.2rem;color:var(--ink);margin-right:3px}
+.feed{list-style:none;padding:0;margin:0 0 14px}
+.feed li{display:grid;grid-template-columns:7.5em minmax(0,1fr) auto;gap:4px 12px;align-items:start;margin:0;padding:10px 0;
+border-top:var(--bw) solid var(--line)}.feed li:first-child{border-top:0;padding-top:0}
+.feed .pill{justify-self:start;white-space:nowrap;margin-top:1px}.feed-main b{margin-right:6px}
+.feed-why{display:block;font-size:.86rem;margin-top:1px}
+.feed-when{text-align:right;font-size:.82rem;line-height:1.3;white-space:nowrap}.feed-when b,.feed-when span{display:block}
+.feed-empty,.all-clear{margin:0;color:var(--muted)}.all-clear span{color:var(--green);font-weight:900;margin-right:4px}
+.feed-card{display:flex;flex-direction:column}.feed-card .activity{margin:auto 0 0;padding-top:10px;border-top:var(--bw) solid var(--line);font-size:.9rem}
+.hold-list{list-style:none;padding:0;margin:0}
+.hold-list li{display:grid;grid-template-columns:7.5em minmax(0,1fr);gap:10px;align-items:start;margin:0;padding:9px 0;
+border-top:var(--bw) solid var(--line)}.hold-list li:first-child{border-top:0;padding-top:0}
+.hold-list .pill{justify-self:start;white-space:nowrap}.hold-list li div{display:flex;flex-direction:column;font-size:.9rem;min-width:0}
+.hold-list li.late span:last-child{color:var(--red);font-weight:700}
+.facts{margin:0}.facts>div{display:grid;grid-template-columns:minmax(0,10.5em) minmax(0,1fr);gap:4px 12px;padding:9px 0;
+border-top:var(--bw) solid var(--line)}.facts>div:first-child{border-top:0;padding-top:0}
+.facts dt{display:flex;gap:6px;align-items:center;font-weight:600;font-size:.9rem}.facts dd{margin:0;font-size:.9rem;color:var(--muted)}
+.facts dd b{color:var(--ink)}.facts details.tip>summary{width:20px;height:20px;font-size:.7rem}
+.record>p:last-child{margin:12px 0 0;font-size:.88rem}
+.steps{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px}
+.steps li{display:flex;gap:12px;margin:0;padding:14px;border-radius:12px;background:var(--bg);border:var(--bw) solid var(--line)}
+.step-n{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);
+color:var(--card);font-weight:800}.steps p{margin:4px 0 0;font-size:.9rem;color:var(--muted)}
 @media (max-width:860px){header{border-radius:26px;padding:8px 10px}.who{margin-left:auto}
 header nav{order:5;flex-basis:100%;border-top:var(--bw) solid var(--line);padding-top:4px}}
 @media (max-width:600px){main{padding:12px}header{margin:10px 12px 0;top:8px}.who>span:not(.avatar){display:none}
@@ -444,7 +497,8 @@ header nav{order:5;flex-basis:100%;border-top:var(--bw) solid var(--line);paddin
 header nav a{padding:0 12px;letter-spacing:.1em}
 .verdict{grid-template-columns:1fr;gap:10px;padding:16px;border-left-width:8px}.verdict .icon{width:46px;height:46px;font-size:1.5rem}
 .verdict .word{font-size:1.8rem}.split{grid-template-columns:1fr}.today{grid-template-columns:repeat(2,minmax(0,1fr))}
-.actions button{flex:1 1 100%}}
+.actions button{flex:1 1 100%}
+.feed li{grid-template-columns:minmax(0,1fr)}.feed-when{text-align:left}.feed-when b,.feed-when span{display:inline;margin-right:6px}.insights{grid-template-columns:1fr}.facts>div{grid-template-columns:1fr}.hold-list li{grid-template-columns:1fr}}
 """
 
 
@@ -591,7 +645,7 @@ def login_page(error=""):
 <p class="muted">Each person signs in with their own PIN so the record shows who checked and who approved.</p></section>""")
 
 
-def today_panel(user=None):
+def today_panel(user=None, trend=False):
     """Today's warning load, and a standing alert when warnings are being waved through. Alerts that name a
     person are shown to pharmacists only."""
     t, fortnight = r.workload(1), r.workload(14)
@@ -611,7 +665,8 @@ def today_panel(user=None):
             f'<div><b>{p["retake"] + p["counter"]}</b>settled at the counter</div>'
             f'<div class="t-amber"><b>{p["call"]}</b>needed a call</div>'
             f'<div class="t-amber"><b>{t["waiting_for_callback"]}</b>waiting for a call-back</div>'
-            f'<div class="t-red"><b>{t["overrides"]}</b>overrides</div></div>{alert}</section>')
+            f'<div class="t-red"><b>{t["overrides"]}</b>overrides</div></div>{alert}'
+            f'{trend_chart() + week_insights() if trend else ""}</section>')
 
 
 def activity_panel(user):
@@ -633,6 +688,226 @@ def activity_panel(user):
     link = '<p><a href="/audit">Open the audit log</a></p>' if user["role"] == "pharmacist" else ""
     return (f'<section class="card" aria-labelledby="activity-h"><h2 id="activity-h">Last activity</h2>'
             f'<ul class="activity"><li>Last check: {check}</li><li>Last override: {override}</li></ul>{link}</section>')
+
+
+# ---------------------------------------------------------------- home page panels: what the counter has been doing
+
+WORD = {"GREEN": "No conflict", "AMBER": "Confirm first", "RED": "Hold"}
+PATH_SHORT = {"retake": "Retake the photo", "counter": "Counter check", "call": "Call the clinic"}
+
+
+def worst_of(d):
+    return max((d.get("verdicts") or {"x": "GREEN"}).values(), key=r.ORDER.index)
+
+
+def ago(at):
+    """'just now', '12 min ago', '3 h ago', else the date and time."""
+    try:
+        s = (datetime.now() - datetime.fromisoformat(at)).total_seconds()
+    except (TypeError, ValueError):
+        return at or ""
+    if s < 60:
+        return "just now"
+    if s < 3600:
+        return f"{int(s // 60)} min ago"
+    if s < 12 * 3600:
+        return f"{int(s // 3600)} h ago"
+    return when(at)
+
+
+def week_counts(days=7):
+    """[(date, {GREEN, AMBER, RED})] for the last `days` days, today last. A slip checked twice counts once."""
+    start = date.today() - timedelta(days=days - 1)
+    slips = {}
+    for x in r.db().execute("SELECT at, ref, detail FROM audit WHERE action = 'check' AND at >= ? ORDER BY seq",
+                            (start.isoformat(),)):
+        slips[(x["at"][:10], x["ref"])] = worst_of(detail_of(x))
+    out = [(start + timedelta(days=i), {"GREEN": 0, "AMBER": 0, "RED": 0}) for i in range(days)]
+    by_day = {d.isoformat(): c for d, c in out}
+    for (day, _), v in slips.items():
+        if day in by_day:
+            by_day[day][v] += 1
+    return out
+
+
+BAR_FILL = {"GREEN": "#0ca30c", "AMBER": "#fab219", "RED": "#d03b3b"}   # status fills, labelled in the legend
+
+
+def bar_svg(c, top, h=92, w=28):
+    """One day's column as SVG (the page's CSP allows no inline styles): green at the base, then amber, then red,
+    2px apart, the top end rounded."""
+    keys = [k for k in ("GREEN", "AMBER", "RED") if c[k]]
+    if not top or not keys:
+        return ""
+    hs = [max(c[k] / top * h, 3) for k in keys]
+    total = sum(hs) + 2 * (len(hs) - 1)
+    y, parts = total, []
+    for i, (k, sh) in enumerate(zip(keys, hs)):
+        y -= sh
+        if i == len(keys) - 1:   # the top segment: rounded data end
+            rr = min(4, sh)
+            parts.append(f'<path fill="{BAR_FILL[k]}" d="M0 {y + sh:.1f}V{y + rr:.1f}Q0 {y:.1f} {rr} {y:.1f}H{w - rr}'
+                         f'Q{w} {y:.1f} {w} {y + rr:.1f}V{y + sh:.1f}Z"/>')
+        else:
+            parts.append(f'<rect fill="{BAR_FILL[k]}" x="0" y="{y:.1f}" width="{w}" height="{sh:.1f}"/>')
+        y -= 2
+    return (f'<svg class="bar" viewBox="0 0 {w} {total:.1f}" width="{w}" height="{total:.0f}" aria-hidden="true">'
+            f'{"".join(parts)}</svg>')
+
+
+def trend_chart():
+    """Checks per day for the last week, stacked by verdict; a table for screen readers."""
+    days = week_counts()
+    top = max((sum(c.values()) for _, c in days), default=0)
+    cols, rows = [], []
+    for d, c in days:
+        n = sum(c.values())
+        label = "Today" if d == date.today() else f"{d:%a}"
+        tipline = f"{d:%a %d %b}: {n} check{'s' if n != 1 else ''}" + (
+            " - " + ", ".join(f"{c[k]} {WORD[k].lower()}" for k in ("GREEN", "AMBER", "RED") if c[k]) if n else "")
+        cols.append(f'<div class="tcol{" is-today" if d == date.today() else ""}" data-tip="{esc(tipline)}">'
+                    f'<div class="area"><span class="cap">{n or ""}</span>{bar_svg(c, top)}</div>'
+                    f'<span class="day">{label}</span></div>')
+        rows.append(f'<tr><th scope="row">{d:%a %d %b}</th><td>{n}</td><td>{c["GREEN"]}</td><td>{c["AMBER"]}</td>'
+                    f'<td>{c["RED"]}</td></tr>')
+    empty = "" if top else (f'<p class="trend-empty">No checks in the last 7 days'
+                            f'{" - open a sample slip and it lands here" if DEMO else ""}.</p>')
+    legend = "".join(f'<span><i class="sw s-{k}" aria-hidden="true"></i>{WORD[k]}</span>' for k in ("GREEN", "AMBER", "RED"))
+    return (f'<div class="trend"><div class="trend-head"><h3>Checks, last 7 days</h3><div class="legend">{legend}</div></div>'
+            f'<div class="plot" aria-hidden="true">{"".join(cols)}{empty}</div>'
+            f'<div class="sr"><table><caption>Checks per day, last 7 days</caption><thead><tr><th scope="col">Day</th>'
+            f'<th scope="col">Checks</th><th scope="col">No conflict</th><th scope="col">Confirm first</th>'
+            f'<th scope="col">Hold</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></div>')
+
+
+def week_insights():
+    """Three numbers that say whether warnings cost the counter too much, or are being waved through."""
+    w = r.workload(7)
+    n, p = w["slips"], w["paths"]
+    quick = w["green"] + p["retake"] + p["counter"]
+    share = f"{round(100 * quick / n)}%" if n else "-"
+    med = w["median_minutes_to_close"]
+    return (f'<dl class="insights">'
+            f'<div><dt>Settled without a call</dt><dd><b>{share}</b>{f" {quick} of {n}" if n else " no checks yet"}</dd></div>'
+            f'<div><dt>Time to close a hold</dt><dd>{f"<b>{med:g} min</b> median" if med is not None else "<b>-</b> none closed yet"}</dd></div>'
+            f'<div><dt>Overrides</dt><dd><b>{w["overrides"]}</b> of {w["closed"]} closed hold{"s" if w["closed"] != 1 else ""}'
+            f'</dd></div></dl>')
+
+
+def recent_checks(user, n=6, extra=""):
+    """The last few checks, newest first: verdict, medicines, the step it asked for, who and when."""
+    seen, items = set(), []
+    for x in r.db().execute("SELECT at, actor, ref, detail FROM audit WHERE action = 'check' ORDER BY seq DESC LIMIT 60"):
+        if x["ref"] in seen:
+            continue
+        seen.add(x["ref"])
+        d = detail_of(x)
+        v = worst_of(d)
+        drugs = ((d.get("entered") or {}).get("drugs") or "").strip()
+        risk, hits, _ = r.drug_risk(drugs) if drugs else (None, [], [])
+        what = (esc(drugs if len(drugs) <= 60 else drugs[:57] + "...") if drugs
+                else '<span class="muted">pre-check, medicines not entered yet</span>')
+        flag = chip("high-risk", "warn") if risk == "high" else ""
+        step = "Hand over" if v == "GREEN" else PATH_SHORT.get(d.get("path"), "Confirm before dispensing")
+        why = plain(d.get("reason") or "") if v != "GREEN" else "No conflict with the slips and lists on record"
+        items.append(f'<li><span class="pill v-{v}">{WORD[v]}</span><div class="feed-main"><b>{what}</b>{flag}'
+                     f'<span class="muted feed-why">{esc(step)} &middot; {esc(why if len(why) <= 110 else why[:107] + "...")}'
+                     f'</span></div><span class="feed-when"><b>{esc(x["actor"])}</b><span class="muted">{esc(ago(x["at"]))}'
+                     f'</span></span></li>')
+        if len(items) >= n:
+            break
+    a = r.last_activity()
+    o = a["override"]
+    if a["check"]:
+        c = a["check"]
+        last_check = f'<b>{esc(c["actor"])}</b>, {esc(when(c["at"]))} - {esc(VERDICT_UI[worst_of(detail_of(c))][0])}'
+    else:
+        last_check = "none yet"
+    if o:
+        note = detail_of(o).get("note") or ""
+        override = (f'<b>{esc(o["actor"])}</b>, {esc(when(o["at"]))} - hold {esc(o["ref"])}'
+                    + (f': "{esc(note)}"' if note else ""))
+    else:
+        override = "none recorded"
+    body = (f'<ul class="feed">{"".join(items)}</ul>' if items else
+            '<p class="feed-empty">Nothing checked yet. Every check lands here with its verdict, the medicines, '
+            'the step it asked for, and who did it.</p>')
+    link = '<a href="/audit">Full audit log</a>' if user["role"] == "pharmacist" else ""
+    return (f'<section class="card feed-card" aria-labelledby="recent-h"><div class="card-head"><h2 id="recent-h">Recent '
+            f'checks</h2>{link}</div>{body}<ul class="activity"><li>Last check: {last_check}</li>'
+            f'<li>Last override: {override}</li>{f"<li>{esc(extra)}</li>" if extra else ""}</ul></section>')
+
+
+def holds_panel():
+    """Holds still open, oldest first, with how long they have waited and what happens next."""
+    rows = r.db().execute("SELECT * FROM holds WHERE status != 'closed' ORDER BY created").fetchall()
+    items = []
+    for h in rows[:4]:
+        worst = max(json.loads(h["verdicts"]).values(), key=r.ORDER.index)
+        st = hold_state(h["id"])
+        due, nxt = follow_up(st, h["status"], r.hold_info(h["id"])[0] or "call")
+        late = due is not None and datetime.now() >= due
+        items.append(f'<li{" class=late" if late else ""}><span class="pill v-{worst}">{WORD[worst]}</span>'
+                     f'<div><b>{esc(h["id"])}</b><span class="muted">{esc(ago(h["created"]))}'
+                     f'{" &middot; " + esc(st["owner"]) if st["owner"] else ""}</span><span>{esc(nxt)}</span></div></li>')
+    more = f'<p class="hint">and {len(rows) - 4} more</p>' if len(rows) > 4 else ""
+    body = (f'<ul class="hold-list">{"".join(items)}</ul>{more}' if items else
+            '<p class="all-clear"><span aria-hidden="true">&#x2713;</span> Nothing on hold. A warning that needs a '
+            'call or a check waits here, with its owner and when to try again.</p>')
+    return (f'<section class="card" aria-labelledby="holds-h"><div class="card-head"><h2 id="holds-h">On hold'
+            f'{f" <span class=count>{len(rows)}</span>" if rows else ""}</h2><a href="/holds">All holds</a></div>'
+            f'{body}</section>')
+
+
+def record_panel(backup=""):
+    """What the checks compare against, and whether the record itself is safe: the counter's safety net."""
+    con = r.db()
+    kinds = dict(con.execute("SELECT kind, COUNT(*) FROM entries GROUP BY kind").fetchall())
+    n_audit = con.execute("SELECT COUNT(*) FROM audit").fetchone()[0]
+    table = r.drug_table()
+    tiers = {}
+    for t in (table or {}).get("molecules", {}).values():
+        tiers[t] = tiers.get(t, 0) + 1
+    raw, _, _ = r.read_data(r.DRUG_RISK)
+    sample = not (isinstance(raw, dict) and raw.get("_verified"))
+    reg, _, _ = r.registry()
+    pol = r.policy()
+    drugs = (f'{tiers.get("ndps", 0)} NDPS / Schedule X, {tiers.get("high", 0)} other high-risk'
+             if table else '<span class="warn">drug list unusable - everything is treated as high-risk</span>')
+    rows = [
+        ("Slips on record", f'<b>{kinds.get("dispensed", 0)}</b> dispensed, <b>{kinds.get("seen", 0)}</b> seen',
+         "A copy, an edit or a re-send of any of these is recognised, by fingerprint - no image is kept for it."),
+        ("Medicines watched", drugs + (f' {chip("sample list", "warn")}' if table and sample else ""),
+         "High-risk medicines are held for confirmation; NDPS / Schedule X items are never released on an override."),
+        ("Prescribers listed", f'<b>{len(reg)}</b> in the local registry',
+         "A Regn No is checked against this list. A valid number proves the doctor exists, not that they wrote the slip."),
+        ("New high-risk slips", "confirmed with the prescriber" if pol.get("confirm_new_high_risk", True)
+         else '<span class="warn">not confirmed (policy off)</span>',
+         "A high-risk prescription seen for the first time needs the prescriber's confirmation (data/policy.json)."),
+        ("Audit trail", f'<b>{n_audit}</b> entries, append-only and hash-chained',
+         "Every check, hold, override and sign-in, with who and when. Records cannot be edited or deleted."),
+    ]
+    items = "".join(f'<div><dt>{k}{tip(k, esc(why))}</dt><dd>{v}</dd></div>' for k, v, why in rows)
+    return (f'<section class="card record" aria-labelledby="record-h"><h2 id="record-h">What every check compares '
+            f'against</h2><dl class="facts">{items}</dl>{backup}</section>')
+
+
+def how_it_works():
+    """Public demo: the four questions behind every verdict, so a visitor knows what the samples show."""
+    steps = (
+        ("The image", "Seen before? An edited copy? Already dispensed at another pharmacy? Compared with every slip "
+                      "on record by fingerprint, in about a second."),
+        ("The medicines", "Each item is tiered: NDPS / Schedule X, other high-risk (H1), or routine. Routine items "
+                          "with no issue can go home now; only the rest waits."),
+        ("The prescriber", "Regn No against the local registry, the name on the slip against the listed name, and a "
+                           "clinic-signed code when the slip carries one."),
+        ("The decision", "No conflict, Confirm first or Hold - with the quickest step that settles it: retake the "
+                         "photo, check at the counter, or call the clinic."),
+    )
+    lis = "".join(f'<li><span class="step-n" aria-hidden="true">{i}</span><div><b>{t}</b><p>{b}</p></div></li>'
+                  for i, (t, b) in enumerate(steps, 1))
+    return (f'<section class="card how" aria-labelledby="how-h"><h2 id="how-h">How a check decides</h2>'
+            f'<ol class="steps">{lis}</ol></section>')
 
 
 def home_page(user):
@@ -657,16 +932,19 @@ def home_page(user):
              f'waiting for a call-back or decision.</p>' if n_holds else "")
     backup = backup_line()
     alerts = holds + (backup.replace('<p class="warn">', '<p class="notice notice-red">') if 'class="warn"' in backup else "")
-    status = "" if 'class="warn"' in backup else f'<section class="card">{backup}</section>'
-    return page("Counter", f"""{alerts}<div class="home"><section class="card hero" id="check"><div class="hero-head"><h1>Check a prescription</h1>{reading_status()}</div>
+    status = "" if 'class="warn"' in backup else backup   # a backup problem is already the alert at the top
+    inbox_card = (f'<section class="card" aria-labelledby="inbox-h"><h2 id="inbox-h">Received on WhatsApp</h2>{inbox}'
+                  f'</section>') if rows else ""
+    inbox_line = "WhatsApp inbox: nothing received in the last 24 hours" if STATE.inbox and not rows else ""
+    return page("Counter", f"""{alerts}<div class="home"><div class="home-col"><section class="card hero" id="check"><div class="hero-head"><h1>Check a prescription</h1>{reading_status()}</div>
 {demo_upload_note()}<form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
 <label for="image" class="drop">{UPLOAD_ICON}<span class="drop-title">Photo or PDF of the slip</span>
 <span class="muted"><span class="js-only">Drop, paste or choose - it starts by itself</span><span class="nojs-only">Choose a file, then Analyse</span> {kbd("Mod+U")}</span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
  required data-shortcut="upload" aria-keyshortcuts="Control+U Meta+U">
 <p class="upload-status" role="status" aria-live="polite" data-upload-status></p>
-<p class="nojs-only"><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Analyse prescription</button>{kbd("Mod+Enter")}</p></form>{demo_panel(user)}</section>
-<div class="side">{today_panel(user)}{activity_panel(user)}</div></div>{demo_about() if DEMO and demo_ready() else ""}
-<section class="card"><h2>Received on WhatsApp</h2>{inbox}</section>{status}""", user, refresh=60)
+<p class="nojs-only"><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Analyse prescription</button>{kbd("Mod+Enter")}</p></form>{demo_panel(user)}</section>{inbox_card}{recent_checks(user, extra=inbox_line)}</div>
+<div class="home-col side">{today_panel(user, trend=True)}{holds_panel()}{record_panel(status)}</div></div>
+{how_it_works() if DEMO else ""}{demo_about() if DEMO and demo_ready() else ""}""", user, refresh=60)
 
 
 def reading_status():

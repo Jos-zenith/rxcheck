@@ -193,7 +193,11 @@ with tempfile.TemporaryDirectory() as t:
           'class="demo-note"' in body and body.index('class="demo-note"') < body.index('id="image"')
           and "you type the medicines" in body)
     check("  sample slips sit inside the check card, under the upload box",
-          body.index('id="image"') < body.index('id="demo-h"') < body.index('class="side"'))
+          body.index('id="image"') < body.index('id="demo-h"') < body.index('class="home-col side"'))
+    check("  home page is filled with what the counter has been doing: recent checks, 7-day trend, holds, the record",
+          all(x in body for x in ('id="recent-h"', "Checks, last 7 days", 'id="holds-h"', 'id="record-h"',
+                                  "Settled without a call", "How a check decides"))
+          and 'style="' not in body)   # the CSP allows no inline styles: the chart is drawn with SVG attributes
     check("  'This demo': what it includes, the reader's scores on the synthetic set with their caveat, sample thumbnails",
           "This demo" in body and "Scores by slip type" in body and "Silent errors" in body
           and "silent errors" in body and '/demo/thumb/printed' in body
