@@ -119,7 +119,7 @@ New rows for the "after a warning" step table (`next_step()`):
 
 ## Entering the numbers without adding a form
 
-The numbers have to come from somewhere, and there is no OCR. So:
+The numbers have to come from somewhere, and the optional OCR reads names and strengths only, not quantities. So:
 
 - **Signed code first.** Version 2 of the clinic-signed code adds `qty`, `repeats` and `min_days` per line. A slip
   with such a code needs no typing at all (`source = 'signed'`, `status = 'confirmed'`).

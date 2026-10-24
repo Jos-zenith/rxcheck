@@ -184,6 +184,18 @@ with tempfile.TemporaryDirectory() as t:
           r.drug_risk("Alprax 0.25")[0] == "high" and r.fail_closed("Alprax 0.25, Lyrica 75, Dolo 650") == ["Alprax 0.25"])
     check("  NDPS medicine without a strength is flagged like any high-risk one",
           any("without a strength" in e["issue"] for e in r.review_drugs("Alprax")))
+    # an unlisted name that looks controlled must not pass as routine (a fabricated psychiatry slip, 'Panazep')
+    risk, hits, unknown = r.drug_risk("Panazep 50mg, Alprex 0.5, Dolo 650, Vitamin C")
+    check("unlisted look-alikes count as high-risk: benzodiazepine stem, near-spelling of a listed brand",
+          risk == "high" and len(hits) == 2 and "benzodiazepine" in hits[0] and "'alprax'" in hits[1]
+          and unknown == ["Vitamin C"], (hits, unknown))
+    check("  ...each held on its own; the routine item next to it is not",
+          [i["verdict"] for i in r.item_verdicts("Panazep 50mg, Dolo 650", {"edited": False, "prescriber": "unknown",
+                                                 "repeat": False, "new_slip": True}, r.policy())] == ["AMBER", "GREEN"])
+    check("  ...but not fail-closed: the pharmacist can confirm it is routine and override",
+          r.fail_closed("Panazep 50mg") == [])
+    check("  carbamazepine / oxcarbazepine / olanzapine stay routine",
+          all(r.drug_risk(d)[0] == "routine" for d in ("Carbamazepine 200", "Oxcarbazepine 300", "Olanzapine 5")))
     r.DRUG_RISK.write_text("{broken", encoding="utf-8")
     check("  drug list unusable: nothing can be ruled out, every medicine fails closed",
           r.fail_closed("Dolo 650, Lyrica 75") == ["Dolo 650", "Lyrica 75"])

@@ -11,7 +11,7 @@ Related documents: [docs/ANALYSIS.md](docs/ANALYSIS.md) (technical overview) · 
 
 | Path | Purpose |
 |---|---|
-| `app/` | Python verification engine, CLI, and counter web app |
+| `app/` | Python verification engine, CLI, counter web app, and optional slip reading (OCR) |
 | `data/` | Empty prescriber registry plus illustrative policy and drug-risk defaults |
 | `docs/` | Technical overview (ANALYSIS.md), field-validation protocol and public write-up |
 | `eval/` | Dataset builder and evaluator; generated datasets and results stay local |
@@ -40,8 +40,8 @@ What a pharmacist can act on are facts a forger doesn't control:
 | | |
 |---|---|
 | **Users** | Retail pharmacists and counter staff, initially single pharmacies in Tier-2 cities, with one or more billing counters |
-| **In scope** | Re-use and edit detection; authenticated doctor confirmation (simulated service); hash-only shared index across pharmacies (simulated network); no-image index of every checked slip; prescriber registry check; clinic-signed issuance codes; drug-risk policy; consistency of requested drugs with the matched record or signed code; confirmation of ambiguous medicine entries; pre-checking images as they arrive; counter app with staff sign-in; hold-and-escalate queue; audited data imports; verify, backup and restore; offline operation |
-| **Out of scope (now)** | Proving issuance for slips without a signed code (needs a call to the clinic); OCR; a production shared-index service (HTTPS, member authentication, key rotation); e-prescription PDF and platform QR verification; clinical appropriateness |
+| **In scope** | Re-use and edit detection; authenticated doctor confirmation (simulated service); hash-only shared index across pharmacies (simulated network); no-image index of every checked slip; prescriber registry check; clinic-signed issuance codes; drug-risk policy; consistency of requested drugs with the matched record or signed code; confirmation of ambiguous medicine entries; reading the slip photo to fill in the form (optional, offline OCR); pre-checking images as they arrive; counter app with staff sign-in; hold-and-escalate queue; audited data imports; verify, backup and restore; offline operation |
+| **Out of scope (now)** | Proving issuance for slips without a signed code (needs a call to the clinic); reading handwriting reliably; a production shared-index service (HTTPS, member authentication, key rotation); e-prescription PDF and platform QR verification; clinical appropriateness |
 
 ## How it works
 
@@ -146,7 +146,7 @@ This is a **simulation**: the hub is a folder (`hub.db`) and a peer is another `
 Image matching only recognises slips the pharmacy has seen before. A **newly fabricated** slip using a real doctor's identity has nothing to match, and no pixel analysis can show who wrote it. For high-risk medicines the conservative rule stays: a new slip needs a call to the clinic. Issuance codes are the path that can replace the call, and the only check that speaks to *authorship*:
 
 1. A participating clinic creates a key pair once: `rxcheck clinic keygen clinic.pem`. The private key stays at the clinic.
-2. The pharmacy collects the clinic's **public** key in person and records it in the registry, together with where it came from (`issuer_key`, `issuer_key_source`). A key without a source is never trusted.
+2. The pharmacy collects the clinic's **public** key in person and records it in the registry, together with where it came from (`issuer_key`, `issuer_key_source`). A key without a source is never trusted. If the clinic says it signs every prescription, also record `signs_all: true`, so a slip in that doctor's name *without* a code is not waved through.
 3. For each prescription the clinic prints a QR code (`rxcheck clinic issue clinic.pem --regn ... --date ... --drugs ... --patient ...`). The code is an Ed25519 signature over the Regn No, date, a random serial, patient initials and age, and the medicines as written. It is 172 characters, a version-7 QR code, printed about 3 cm wide.
 4. Every check looks for the code automatically. If it verifies, the Regn No and date come from the code, and the counter app pre-fills the medicines.
 
@@ -156,7 +156,7 @@ Image matching only recognises slips the pharmacy has seen before. A **newly fab
 | Copies a genuine code onto another slip | Same serial seen again → repeat (**AMBER** for high-risk) |
 | Adds a medicine or raises a strength | Not in the signed list → **AMBER** |
 | Changes the Regn No or date | Differs from the signed values → **AMBER** |
-| Removes the code | The slip is judged like any unsigned slip |
+| Removes the code | If the registry records that the clinic signs **every** slip (`signs_all: true`, only with a key collected in person): no code → **AMBER**, call the clinic. Otherwise the slip is judged like any unsigned slip |
 
 What it does **not** cover: a copied code presented at *another* pharmacy (that needs a shared serial register); a stolen clinic key; and clinics that don't take part. Payment or website QR codes on a slip are ignored.
 
@@ -180,6 +180,7 @@ An AI-generator marker in the file, or a file dated before the prescription date
 | Clinic-signed issuance code fails verification | AMBER | RED |
 | Regn No invalid (not in a recent complete registry, or a verified entry names a different doctor) | AMBER | RED |
 | AI/provenance marker, or file dated before the Rx (supporting evidence only) | AMBER | AMBER |
+| **No clinic code**, but the prescriber's clinic signs every slip (`signs_all`) | AMBER | AMBER |
 | Image unusable for automated comparison | AMBER | AMBER |
 | **Similar** to a recorded slip (possible rewrite) | AMBER | AMBER |
 | Requested drug/strength differs from the matched record | AMBER | AMBER |
@@ -219,6 +220,7 @@ The check takes a second or two. At 30 images a day that is about a minute of co
 | Prescriber unknown or unverified | - | call |
 | New slip, valid prescriber (`confirm_new_high_risk`) | - | call |
 | AI/provenance marker, or file dated before the Rx | call | call |
+| No clinic code, but the clinic signs every slip | call | call |
 | Edited copy, invalid Regn No, or failed clinic signature (RED) | call | call |
 
 - **retake** (seconds): photograph the paper slip directly and check again. For WhatsApp arrivals the counter screen asks for this while the customer is still queuing. No paper slip means the prescription stays unchecked. A clean image of a synthetic edited sample is compared like any other; an unusable image goes to manual review.
@@ -264,8 +266,40 @@ Today there is no shared index, so the first rule is how the tool already works.
 `python app/rxcheck.py serve` starts a browser app built around one screen per customer. The server is standard library only, and every page is complete HTML that works without JavaScript. A small Vue bundle served from the same PC adds speed and accessibility on top (see [Counter ergonomics](#counter-ergonomics-and-accessibility)):
 
 1. **Photo in.** Upload a photo, or open one that arrived on the pharmacy's WhatsApp (the `--inbox` folder, pre-checked by `watch`). The app runs an image pre-check and decodes any clinic-signed code.
-2. **What is being sold.** Staff enter the medicines and strengths, the Regn No, doctor and (optionally) the patient's name, with the Regn No, date and patient prefilled from a verified code. Before the check runs, each entry that is easy to misread must be **corrected or ticked as confirmed against the slip**: a name close to a known brand ("Alprx", did you mean Alprax, HIGH-RISK?), a strength starting with "." (.25 vs 25), a trailing zero (5.0 vs 50), or a high-risk medicine with no strength.
+2. **What is being sold.** If OCR is installed, the photo is read in the background while this form is open, and what it finds fills the fields that are still empty (see *Reading the slip*). Staff enter the medicines and strengths, the Regn No, doctor and (optionally) the patient's name, with the Regn No, date and patient prefilled from a verified code. Before the check runs, each entry that is easy to misread must be **corrected or ticked as confirmed against the slip**: a name close to a known brand ("Alprx", did you mean Alprax, HIGH-RISK?), a strength starting with "." (.25 vs 25), a trailing zero (5.0 vs 50), or a high-risk medicine with no strength.
 3. **The decision.** One word (**HOLD** / **CONFIRM FIRST** / **NO CONFLICT FOUND**; GREEN means nothing contradicts the slip, not that it is genuine) and the one sentence that caused it. Then what can be handed over now and what is held, and the one step that settles the rest (retake / check at the counter / call the clinic, with the registry number). The outcome buttons for that step come next, then the evidence: close-ups of changed areas next to the recorded slip, or the slip itself. Every individual finding and note is folded under "All checks".
+
+### Reading the slip (OCR): a typing aid, not a check
+
+Typing is the main friction for slips without a signed code, so the counter can read the photo (`app/ocr.py`, RapidOCR on onnxruntime). It runs **on the counter PC, offline**: no image or text leaves the pharmacy. It takes 5-15 s on a typical PC, so it runs in the background: the form opens at once and fills in when the reading is done. Nothing staff have typed is replaced, and a clinic-signed code always wins.
+
+What it does with each reading:
+
+| Reading | Filled in? | Tick needed when sent unchanged? |
+|---|---|---|
+| Medicine whose whole name is on file (drug list, or entered at this counter before), read with confidence 0.80 or more | Yes | Only if high-risk, without a strength, or read below 0.95 |
+| Medicine name not on file, read with 0.95 or more | Yes | **Always** ("not a name this pharmacy has on file") |
+| Medicine name not on file below 0.95, or anything below 0.80 | **No.** Shown with the cut-out of the slip it came from, for staff to type | - |
+| Regn No | Yes | **Always**: a misread digit can name another doctor, which is RED |
+| Doctor's name, date (day first, as written in India) | Yes, unless the slip shows two different ones | If read below 0.95 |
+
+Three rules come from how OCR fails:
+
+- **A reading is never swapped for the nearest known name.** "Metfornin" is shown as read, not offered as Metformin or Metoprolol: look-alike names one tap apart are a known cause of dispensing errors.
+- **Confidence alone is weak evidence.** On the synthetic demo handwriting the engine reported 0.9 for nonsense, so a name must be on file, or read very clearly *and* ticked.
+- **Whole names only.** "Pan D" is not the known "Pan".
+
+Each item that needs a tick appears in the existing "check these against the slip" box, next to the cut-out of the slip it was read from. The audit trail records which photo readings were ticked, and for every check an `ocr-use` line with counts only: values offered, kept as read, corrected, and left for staff to type. The 0.80 / 0.95 thresholds are **placeholders**: they are not measured on real slips, and the shadow pilot should set them from those counts.
+
+Printed slips read well (test: name, strength, Regn No, doctor and date all correct). **Handwriting mostly does not**: expect handwritten medicine lines to be shown as unclear rather than filled in. Install (optional; the counter works without it):
+
+```bash
+pip install -r requirements-ocr.txt
+pip install --no-deps rapidocr_onnxruntime==1.4.4   # without its deps: it asks for a second, non-headless OpenCV
+python app/ocr.py slip.jpg                          # what it reads from one photo, and what it would fill in
+```
+
+`RXCHECK_OCR=off` switches it off. It is not installed in the container image, so the public demo does not read photos (its sample slips are filled in for the visitor).
 
 Each person signs in with their own PIN (`rxcheck staff add NAME --role pharmacist|staff`), so the audit trail records who checked and who approved. Sessions end after 30 idle minutes or one 10-hour shift. Five wrong PINs lock that name for 10 minutes. Disabling a staff member signs them out at once. Every form carries an anti-forgery token, and the pages forbid framing and external content.
 
@@ -329,6 +363,7 @@ These files decide verdicts, so a problem with them must never crash a check or 
 |---|---|
 | Drug-risk list missing, corrupt or empty | **Every medicine is treated as high-risk**, and the reason says so |
 | Unknown tier in the drug list (valid: `ndps`, `high`, `routine`) | That molecule is treated as high-risk; reported |
+| Medicine not in the drug list | Routine, and reported, **unless the name looks high-risk**: spelt like a listed high-risk brand or molecule, or carrying a benzodiazepine / opioid / gabapentinoid / z-drug stem (`-azep`, `-zolam`, `-tadol`, `-gabalin` ...). Then it is held like a high-risk item until confirmed (an override is allowed: it is not NDPS-tier) |
 | Registry missing or corrupt | Prescriber "unverified" (AMBER for high-risk), **never "invalid"** |
 | Regn No not in a registry that lists only some doctors | "Unverified: look it up on the council register", not "invalid" |
 | Malformed registry entry, or a phone or clinic key without a recorded source | Entry treated as unverified; the phone or key is not used |
@@ -420,7 +455,7 @@ python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk]
 | Genuine WhatsApp / screen / photocopy images not flagged | Synthetic tests pass; quality gate for unreadable images | Needs real images from many phones and apps |
 | Valid doctor registration | Registry with coverage, sources, audited import | **Data is a stub.** Tooling is ready; authoritative sources and an owner are not |
 | Risk classification | Validated drug list, fail-safe to high-risk, audited import | **Sample list.** Needs clinical and legal review |
-| Medicine names and strengths | Typed; ambiguous entries must be confirmed; prefilled from signed codes | **No OCR.** Typing remains the main friction for unsigned slips |
+| Medicine names and strengths | Typed; ambiguous entries must be confirmed; prefilled from signed codes, or from the photo (optional OCR, ticked where unsure) | OCR reads printed slips in tests; **handwriting mostly not read**, and thresholds are unmeasured until the pilot |
 | Representative accuracy | Origin-labelled evaluation, held-out lock, leakage check, protocol | **Not done.** No real held-out data yet (see the protocol) |
 | One-glance counter experience | Counter app: one decision, reason, what to hand over, the one step that settles the rest, evidence | Built and tested; **no staff usability test** |
 | Warnings that staff can act on in a queue | Quickest valid step per warning; split sale; call-backs parked; overrides need a reason and are counted | Simulated only. **Real call load and override rate unknown until the shadow pilot** |
@@ -444,7 +479,7 @@ python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk]
 - "Clinic confirmed" is recorded on the pharmacist's word, under their name, unless the doctor answered a ping: then it is recorded as authenticated (see Doctor confirmation). That needs the doctor to have enrolled, through a service that is simulated here. Where there is no receipt, the per-person override and confirmation records are the safeguard.
 - Prescriber data needs an official registry integration (ABDM HPR, NMC or state councils) that does not exist yet. Override alerts across pharmacies need a party outside the pharmacy to receive them.
 - Issuance codes need clinics to take part. A copied code is caught only at the pharmacy that saw it first, since there is no shared serial register. A stolen clinic key defeats them.
-- No OCR. Drug consistency relies on what staff enter, which is confirmed where ambiguous. Edits to an index-only slip can be noticed (seen before + changed request) but not located.
+- OCR reads printed slips but mostly not handwriting, and only fills in the form: drug consistency still relies on what staff send, which is confirmed where ambiguous or read from the photo. Edits to an index-only slip can be noticed (seen before + changed request) but not located.
 - Cross-pharmacy coverage exists only between pharmacies that joined the (simulated) shared index, and only for copies the local no-image index recognises: phone-screen photos, heavy blur and 5x-forwarded copies are missed across pharmacies (see Shared index).
 - A one-digit change in **printed** text (e.g. the Regn No) is below the pixel-diff noise of an AI redraw. It's caught by the registry and record cross-check.
 - Real handwriting cut-and-pasted to a new position is not recognised as a copy (it falls back to policy).

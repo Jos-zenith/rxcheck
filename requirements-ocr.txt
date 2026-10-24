@@ -1,0 +1,11 @@
+# Optional: read the slip photo to fill in the counter form (app/ocr.py). Runs on this PC, offline.
+# Install in two steps - the engine itself without its dependencies, because it asks for opencv-python,
+# which would sit beside the headless OpenCV every detection threshold was tuned with:
+#   pip install -r requirements-ocr.txt
+#   pip install --no-deps rapidocr_onnxruntime==1.4.4
+# The counter works without any of this; RXCHECK_OCR=off switches it off when installed.
+onnxruntime==1.24.4
+pyclipper==1.4.0
+shapely==2.2.0
+PyYAML==6.0.3
+six==1.17.0

@@ -117,6 +117,26 @@ with tempfile.TemporaryDirectory() as t:
     check("same, with a verified clinic code -> GREEN, no call needed", v == "GREEN", rep["reason"])
     check("  Regn No prefilled from the signed code; issuance shown", rep["issuance"]["status"] == "verified"
           and any("taken from the signed issuance code" in n for n in rep["notes"]))
+
+    # ---- a forger crops the code off: caught only where the clinic signs every slip (signs_all)
+    signed_rep = rep   # recorded below; keep it
+    rep, v = run(p_unsigned, "Dolo 650", regn="00000", doctor="Example")
+    check("routine slip without a code, clinic not marked signs_all -> GREEN (judged like any unsigned slip)",
+          v == "GREEN", rep["reason"])
+    r.REGISTRY.write_text(json.dumps({**reg, "00000": {**reg["00000"], "signs_all": True},
+                                      "55555": {**reg["55555"], "signs_all": True}}), encoding="utf-8")
+    rep, v = run(p_unsigned, "Dolo 650", regn="00000", doctor="Example")
+    check("clinic signs every slip, this one has no code -> AMBER even for a routine medicine, call the clinic",
+          v == "AMBER" and rep["flags"].get("code_missing") and rep["path"] == "call"
+          and "NO CLINIC CODE" in rep["reason"], rep["reason"])
+    rep, v = run(p_signed, "Alprax 0.25")
+    check("  ...a slip from that clinic WITH its verified code is still GREEN", v == "GREEN", rep["reason"])
+    rep, v = run(p_unsigned, "Dolo 650", regn="55555", doctor="Untrusted Key")
+    check("signs_all without a key collected in person is ignored (and reported)",
+          not rep["flags"].get("code_missing")
+          and any("signs_all needs a trusted issuer_key" in x for x in r.data_status()["registry"]["problems"]))
+    r.REGISTRY.write_text(json.dumps(reg), encoding="utf-8")
+    rep = signed_rep
     r.record_check(rep, "Alprax 0.25", "00000", "Example")
     rep, v = run(p_signed, "Alprax 0.5")
     check("strength differs from the signed prescription -> AMBER", v == "AMBER" and rep["flags"]["mismatch"],
