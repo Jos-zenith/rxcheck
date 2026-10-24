@@ -553,6 +553,12 @@ def validate_registry(data):
             bad.append("phone has no phone_source - not used for callbacks")
         if rec.get("issuer_key") and not rec.get("issuer_key_source"):
             bad.append("issuer_key has no issuer_key_source - not trusted")
+        if rec.get("signs_all") not in (None, True, False):
+            bad.append("signs_all must be true or false - ignored")
+            rec["signs_all"] = None
+        elif rec.get("signs_all") and not (rec.get("issuer_key") and rec.get("issuer_key_source")):
+            bad.append("signs_all needs a trusted issuer_key (collected in person) - ignored")
+            rec["signs_all"] = None
         if bad:
             rec["_problems"] = bad
             problems += [f"entry {regn}: {b}" for b in bad]
@@ -628,11 +634,34 @@ def drug_table():
     return table if usable else None
 
 
+# Name stems of the abuse-prone classes. 'azep' not followed by 'in' leaves out carbamazepine / oxcarbazepine.
+HIGH_RISK_STEMS = [(re.compile(r"azep(?!in)|zolam|bazam"), "a benzodiazepine"),
+                   (re.compile(r"tadol|codein|orphin|pentazoc|fentan|methadon"), "an opioid"),
+                   (re.compile(r"gabalin"), "a gabapentinoid"),
+                   (re.compile(r"zolpid|zopiclon"), "a sleeping pill (z-drug)")]
+
+
+def looks_high_risk(words, table):
+    """Why an unlisted medicine name looks like a high-risk one, or None. The sample list is short and
+    brands are many: an unlisted 'Panazep' or a misread 'Alprex' must not pass as routine."""
+    high = [n for n in set(table["brands"]) | set(table["molecules"])
+            if table["molecules"].get(table["brands"].get(n, n)) in HIGH_TIERS]
+    for w in words:
+        near = difflib.get_close_matches(w, high, n=1, cutoff=0.75)
+        if near:
+            return f"spelt like '{near[0]}'"
+        for stem, cls in HIGH_RISK_STEMS:
+            if stem.search(w):
+                return f"the name looks like {cls}"
+    return None
+
+
 def drug_risk(drugs):
     """('high' | 'routine' | None, high-risk hits, names not in the list). None = no drugs given.
     Names not in the list are treated as routine - and reported, so a misspelt or missing
-    high-risk brand is visible to the pharmacist instead of silently downgraded. Without a usable
-    drug list nothing can be called routine, so everything is 'high'."""
+    high-risk brand is visible to the pharmacist instead of silently downgraded - unless the name
+    looks like a high-risk one (looks_high_risk), which counts as high-risk until the pharmacist
+    confirms it. Without a usable drug list nothing can be called routine, so everything is 'high'."""
     if not drugs:
         return None, [], []
     table = drug_table()
@@ -645,7 +674,11 @@ def drug_risk(drugs):
         if any(table["molecules"].get(m) in HIGH_TIERS for m in mols):
             hits.append(f"{item.strip()} ({next(m for m in mols if table['molecules'].get(m) in HIGH_TIERS)})")
         elif toks and not any(m in table["molecules"] for m in mols):
-            unknown.append(item.strip())
+            why = looks_high_risk(toks, table)
+            if why:
+                hits.append(f"{item.strip()} (not on the drug list, but {why} - confirm what it is)")
+            else:
+                unknown.append(item.strip())
     return ("high" if hits else "routine"), hits, unknown
 
 
@@ -1457,7 +1490,7 @@ def decide(flags, risk, pol=None):
         return "RED"
     if flags["prescriber"] == "invalid" or issuance == "invalid":
         return "RED" if risk == "high" else "AMBER"
-    if flags.get("unusable") or flags.get("similar") or flags.get("mismatch") or flags.get("meta_conflict"):
+    if flags.get("unusable") or flags.get("similar") or flags.get("mismatch") or flags.get("meta_conflict")             or flags.get("code_missing"):
         return "AMBER"
     if risk == "high":
         if flags["repeat"]:
@@ -1524,6 +1557,9 @@ def next_step(flags, risk, ctx=None, pol=None):
         call.append("The Regn No is not this doctor's: call the clinic on the registry number, never the one on the slip.")
     if flags.get("issuance") == "invalid":
         call.append("The clinic signature in the QR code fails: call the clinic on the registry number.")
+    if flags.get("code_missing"):
+        call.append("This clinic signs every prescription and this slip has no code. If the slip does have a code "
+                    "that did not scan, retake the photo; otherwise call the clinic on the registry number.")
     if flags.get("meta_conflict"):
         call.append("The image file carries an AI-generator marker or predates the prescription: ask the clinic "
                     "whether it issued this slip.")
@@ -1756,6 +1792,11 @@ def run_check(image, drugs=None, regn=None, doctor=None, rx_date=None, window_da
     status, rec, msg = prescriber(regn, doctor)
     flags["prescriber"] = status
     (findings if status == "invalid" else notes).append(msg)
+    # a clinic that signs every slip: one in its doctor's name with no code was not issued there, or had its
+    # code cut off (a forger's easiest way round signed codes). Only with a key collected in person.
+    if rec and rec.get("signs_all") is True and trusted(rec, "issuer_key") and flags.get("issuance", "none") == "none":
+        flags["code_missing"] = True
+        findings.append(f"NO CLINIC CODE: the clinic of {rec['name']} signs every prescription, but this slip has none")
 
     # 4. metadata: supporting evidence only (strong -> confirm, weak/info -> note)
     for lvl, text in metadata(image, rx_date):
@@ -2292,7 +2333,7 @@ def write_data(path, data, action, detail):
 def import_registry(csv_path, source, coverage="partial", replace=False, verified_on=None):
     """Merge (or replace) registry entries from a CSV that a person checked against the medical council
     register. Columns: regn_no, name, [council, verified_on, phone, phone_source, issuer_key,
-    issuer_key_source]. All-or-nothing: any bad row rejects the whole file."""
+    issuer_key_source, signs_all (yes = the clinic signs every slip)]. All-or-nothing: any bad row rejects the whole file."""
     if not source or not source.strip():
         raise ValueError("--source is required: say which register was checked, by whom")
     if coverage not in REGISTRY_COVERAGE:
@@ -2321,7 +2362,8 @@ def import_registry(csv_path, source, coverage="partial", replace=False, verifie
                      "verified_on": checked, "phone": row.get("phone") or None,
                      "phone_source": row.get("phone_source") or None,
                      "issuer_key": row.get("issuer_key") or None,
-                     "issuer_key_source": row.get("issuer_key_source") or None}
+                     "issuer_key_source": row.get("issuer_key_source") or None,
+                     "signs_all": True if (row.get("signs_all") or "").lower() in ("yes", "true", "1") else None}
     if not rows:
         errors.append("no rows")
     if errors:

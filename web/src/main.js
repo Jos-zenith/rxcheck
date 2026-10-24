@@ -6,6 +6,7 @@ import LookupField from './components/LookupField.vue'
 import AuditLog from './components/AuditLog.vue'
 import { installShortcuts } from './shortcuts.js'
 import { installQuickCheck } from './quickcheck.js'
+import { installOcrFill } from './ocrfill.js'
 
 document.documentElement.classList.add('js')
 installShortcuts()
@@ -27,6 +28,9 @@ document.querySelectorAll('[data-lookup]').forEach((el) => {
   }
   createApp(LookupField, { kind: el.dataset.lookup, multi: 'multi' in el.dataset, attrs }).mount(el)
 })
+
+// after the lookup fields are mounted: the filler talks to their inputs
+installOcrFill()
 
 const audit = document.getElementById('rx-audit')
 if (audit) {

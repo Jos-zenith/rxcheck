@@ -17,6 +17,7 @@ from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
+os.environ.setdefault("RXCHECK_OCR", "off")   # uploads here test deployment, not the photo reading
 import rxcheck as r  # noqa: E402
 import counter_app as app  # noqa: E402
 
@@ -47,6 +48,7 @@ files = sorted(set(tracked) | {p.relative_to(ROOT).as_posix() for p in ROOT.rglo
 inside = [f for f in files if docker_included(f, patterns)]
 check(f"image build context is code + default data only ({', '.join(inside)})",
       set(inside) == {"requirements.txt", "app/rxcheck.py", "app/counter_app.py", "app/sharedindex.py", "app/doctorping.py",
+                      "app/ocr.py",
                       "docker-entrypoint.sh",
                       "data/drug_risk.json", "data/policy.json", "data/registry.json",
                       "static/app.js", "static/app.css",

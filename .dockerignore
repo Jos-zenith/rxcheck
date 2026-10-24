@@ -8,6 +8,7 @@ app/*
 !app/counter_app.py
 !app/sharedindex.py
 !app/doctorping.py
+!app/ocr.py
 !static/app.js
 !static/app.css
 !docker-entrypoint.sh

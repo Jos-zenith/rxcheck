@@ -71,6 +71,13 @@ function close() {
   active.value = -1
 }
 
+// a value from the photo reading (ocrfill.js): taken only while the field is empty, never shown as a suggestion
+function onFill(e) {
+  if (value.value.trim()) return
+  value.value = String(e.detail || '')
+  close()
+}
+
 function choose(i) {
   const item = items.value[i]
   if (!item) return
@@ -120,7 +127,7 @@ onBeforeUnmount(() => { clearTimeout(timer); if (ctrl) ctrl.abort() })
            :placeholder="attrs.placeholder" :required="attrs.required" :inputmode="attrs.inputmode"
            role="combobox" autocomplete="off" spellcheck="false" aria-autocomplete="list"
            :aria-expanded="open ? 'true' : 'false'" :aria-controls="listId" :aria-activedescendant="activeId"
-           :aria-describedby="attrs.describedby" @input="onInput" @keydown="onKeydown" @blur="close">
+           :aria-describedby="attrs.describedby" @input="onInput" @keydown="onKeydown" @blur="close" @rx-fill="onFill">
     <ul v-show="open" :id="listId" role="listbox" class="rx-lookup__list" :aria-label="`Suggestions for ${attrs.label}`">
       <li v-for="(it, i) in items" :id="`${listId}-${i}`" :key="it.value + i" role="option"
           :aria-selected="i === active ? 'true' : 'false'" :class="{ 'is-active': i === active }"

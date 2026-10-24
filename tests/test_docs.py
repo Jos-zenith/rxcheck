@@ -19,6 +19,7 @@ ROWS = {
     "Regn No invalid (not in a recent complete registry, or a verified entry names a different doctor)":
         [dict(prescriber="invalid")],
     "AI/provenance marker, or file dated before the Rx (supporting evidence only)": [dict(meta_conflict=True)],
+    "**No clinic code**, but the prescriber's clinic signs every slip (`signs_all`)": [dict(code_missing=True)],
     "Image unusable for automated comparison": [dict(unusable=True)],
     "**Similar** to a recorded slip (possible rewrite)": [dict(similar=True)],
     "Requested drug/strength differs from the matched record": [dict(repeat=True, mismatch=True)],
@@ -84,6 +85,7 @@ STEP_ROWS = {
     "Prescriber unknown or unverified": [dict(prescriber="unknown"), dict(prescriber="unverified")],
     "New slip, valid prescriber (`confirm_new_high_risk`)": [dict(new_slip=True)],
     "AI/provenance marker, or file dated before the Rx": [dict(meta_conflict=True)],
+    "No clinic code, but the clinic signs every slip": [dict(code_missing=True)],
     "Edited copy, invalid Regn No, or failed clinic signature (RED)":
         [dict(edited=True), dict(prescriber="invalid"), dict(issuance="invalid")],
 }

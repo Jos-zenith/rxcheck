@@ -31,6 +31,7 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, quote
 
 import doctorping as dp
+import ocr
 import rxcheck as r
 
 MAX_UPLOAD = 15 * 1024 * 1024
@@ -48,6 +49,7 @@ STATIC_TYPES = {"app.js": "text/javascript; charset=utf-8", "app.css": "text/css
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; "
        "form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 LOOKUP_KINDS = ("drug", "regn", "doctor", "patient")
+SEEN_DRUG = re.compile(r"\s*(?:(?:tab|cap|syp|inj|t|c)\.?\s+)?([a-z][a-z-]{2,}(?: [a-z][a-z-]{2,})?)", re.I)
 LOOKUP_MAX = 8
 AUDIT_PAGE = 50
 OUTCOME_LABELS = {"confirmed": "Clinic confirmed", "refused": "Refused", "dispensed-after-review": "Dispensed after review",
@@ -120,7 +122,7 @@ def save_case(cid, data):
     tmp.replace(meta)
 
 
-def new_case(data, suffix, origin):
+def new_case(data, suffix, origin, read=True):
     if len(data) > MAX_UPLOAD:
         raise HttpError(413, "Image is larger than 15 MB")
     if suffix not in r.IMG_EXT:
@@ -135,9 +137,38 @@ def new_case(data, suffix, origin):
         raise HttpError(400, "That file is not a readable image")
     # pre-check without drugs: shows routine/high-risk outcomes and decodes any clinic-signed code to prefill
     pre = r.public(r.run_check(path, draw=False))
+    # reading the photo takes 5-15 s on a counter PC: it runs in the background and the form fills in when it is
+    # done. Not for a retake (already decided) or a demo sample (synthetic slip, medicines filled in for the visitor)
+    read = read and not origin.startswith("demo:") and ocr.available()
     save_case(cid, {"origin": origin, "created": r.now(), "by": r.actor(), "pre": pre, "final": None,
-                    "hold": None, "recorded": None})
+                    "hold": None, "recorded": None, "ocr": {"status": "pending"} if read else None})
+    if read:
+        threading.Thread(target=read_case, args=(cid, path, known_drug_names()), daemon=True).start()
     return cid
+
+
+def known_drug_names():
+    """Medicine names this pharmacy knows: the drug list, and names entered at this counter before."""
+    table = r.drug_table() or r.EMPTY_TABLE
+    names = set(table["brands"]) | set(table["molecules"])
+    for (drugs,) in r.db().execute("SELECT drugs FROM entries WHERE drugs != '' ORDER BY created_at DESC LIMIT 3000"):
+        for item in re.split(r"[,;\n]", drugs or ""):
+            m = SEEN_DRUG.match(item)
+            if m:
+                names.add(m.group(1).strip().lower())
+    return names
+
+
+def read_case(cid, path, known):
+    """Background: OCR the photo and store what it read on the case. A failure only means staff type as before."""
+    res = ocr.read_slip(path, known, lambda text: r.drug_risk(text)[0] == "high")
+    with STATE.case_lock:
+        try:
+            _, case = load_case(cid)
+        except HttpError:
+            return   # cleared meanwhile
+        case["ocr"] = res
+        save_case(cid, case)
 
 
 def finalize(cid, img, f):
@@ -261,6 +292,11 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 8px
 th{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}tr:hover td{background:var(--bg)}
 .issues{border:2px solid var(--amber);background:var(--amber-bg);color:var(--ink);border-radius:10px;padding:10px 14px;margin-top:14px}
 .issues ul{list-style:none;padding-left:0}details.override{margin-top:12px}
+.ocr{margin:14px 0 4px;padding:10px 14px;border-radius:12px;background:var(--bg);border:var(--bw) solid var(--line)}
+.ocr p{margin:4px 0}.ocr-list{list-style:none;padding-left:0;margin:8px 0 2px}
+.ocr-list li{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:8px 0}
+img.crop{display:block;max-width:100%;max-height:72px;border:var(--bw) solid var(--line);border-radius:6px;background:#fff}
+.issues img.crop{margin:4px 0 6px 28px}
 .today{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .today div{padding:10px 12px;border-radius:10px;background:var(--card);border:var(--bw) solid var(--line);color:var(--muted);font-size:.86rem;line-height:1.25}
 .today b{display:block;font-size:1.7rem;color:var(--ink);line-height:1.1;margin-bottom:2px}
@@ -514,6 +550,10 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
     if signed and not fields:
         f = {"drugs": signed["drugs"], "regn": signed["regn"], "rx_date": signed["date"],
              "patient": signed.get("patient", "")}
+    read = case.get("ocr") or {}
+    if not fields and not signed:   # the photo reading fills only what is still empty; a signed code wins
+        for k, v in ocr.values(read).items():
+            f[k] = f.get(k) or v
     note = ""
     if signed:
         note = ('<p class="muted">Filled in from the clinic-signed code on the slip. Remove any medicine the customer '
@@ -524,7 +564,8 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
     if issues:
         items = "".join(f'<li><label class="tick">'
                         f'<input type="checkbox" name="confirm" value="{i}" required> <span><b>{esc(x["item"])}</b>: '
-                        f'{esc(x["issue"])}</span></label></li>' for i, x in enumerate(issues))
+                        f'{esc(x["issue"])}</span></label>{crop_img(cid, x.get("crop"), x["item"])}</li>'
+                        for i, x in enumerate(issues))
         issue_html = (f'<div class="issues"><b>Check these against the slip before continuing.</b> Correct the entry '
                       f'above, or tick to confirm it is exactly what the slip says.<ul>{items}</ul></div>')
     v = pre["verdicts"]
@@ -537,7 +578,7 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
         pre_line += " " + plain(pre.get("reason", ""))
     err = f'<p class="warn">{esc(error)}</p>' if error else ""
     return page("Enter medicines", f"""<section class="card"><h1>What is the customer buying?</h1>
-<p class="muted">{esc(pre_line)}</p>{note}{err}
+<p class="muted">{esc(pre_line)}</p>{note}{err}{"" if signed else ocr_panel(cid, read)}
 <form method="post" action="/case/{cid}/check" data-primary>{csrf_field(user)}
 <label for="drugs">Medicines and strengths being sold (as on the slip)</label>
 <div data-lookup="drug" data-multi><input type="text" id="drugs" name="drugs" value="{esc(f.get("drugs"))}"
@@ -557,6 +598,37 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
 {issue_html}<p><button type="submit" aria-keyshortcuts="Control+Enter Meta+Enter">Get decision</button>{kbd("Mod+Enter")}</p>
 </form></section>
 <section class="card"><h2>The slip</h2><img class="evidence" src="/img/{cid}" alt="Prescription image as received"></section>""", user)
+
+
+def crop_img(cid, n, what):
+    if not isinstance(n, int):
+        return ""
+    return f'<img class="crop" src="/case/{cid}/crop/{n}" alt="The part of the slip read as {esc(what)}">'
+
+
+def ocr_panel(cid, read):
+    """What the photo reading found: filled into empty fields, or shown for staff to type. '' when OCR is off."""
+    st = (read or {}).get("status")
+    if st == "pending":
+        return (f'<div class="ocr" id="ocr" role="status" data-ocr-pending="/case/{cid}/ocr"><p><b>Reading the photo</b> '
+                f'to fill in what it can (5-15 s, on this PC). You can start typing: nothing you type is replaced.</p>'
+                f'<p class="hint">Without JavaScript, <a href="/case/{cid}">reload this page</a> before typing.</p></div>')
+    if st == "failed":
+        return ('<div class="ocr" id="ocr" role="status"><p class="hint">The photo could not be read automatically. '
+                'Type the medicines from the slip.</p></div>')
+    if st != "done":
+        return ""
+    found = [d["text"] for d in read.get("drugs", [])]
+    found += [f'{label} {read[k]["value"]}' for k, label in (("regn", "Regn No"), ("doctor", "doctor"),
+                                                             ("rx_date", "date")) if read.get(k)]
+    head = (f'<p><b>Read from the photo:</b> {esc(", ".join(found))}. Filled into empty fields only - check each one '
+            f'against the slip; anything that needs a tick is asked when you continue.</p>' if found else
+            '<p><b>Nothing could be filled in from the photo.</b> Type the medicines from the slip.</p>')
+    unclear = "".join(f'<li>{crop_img(cid, u.get("crop"), u["text"])}<span>Read as <b>{esc(u["text"])}</b>: '
+                      f'{esc(u["why"])}. Not filled in - type it if it is being sold.</span></li>'
+                      for u in read.get("unclear", []))
+    unclear = f'<ul class="ocr-list">{unclear}</ul>' if unclear else ""
+    return f'<div class="ocr" id="ocr" role="status">{head}{unclear}</div>'
 
 
 def decision_page(user, cid, case, error="", notice=""):
@@ -834,14 +906,15 @@ def holds_page(user):
 # ---------------------------------------------------------------- audit log (pharmacists: compliance review)
 
 ACTION_LABELS = {
-    "check": "Check", "entry-confirmed": "Entry confirmed against the slip", "hold": "Hold opened",
+    "check": "Check", "entry-confirmed": "Entry confirmed against the slip", "ocr-use": "Photo reading used",
+    "hold": "Hold opened",
     "resolve": "Hold outcome", "doctor-ask": "Doctor asked", "doctor-receipt": "Doctor's answer", "login": "Signed in", "login-failed": "Wrong PIN", "login-locked": "Sign-in locked",
     "add": "Recorded in the ledger", "index": "Indexed (no image)", "index-update": "Index updated",
     "migrate": "Migrated", "staff-add": "Staff added", "staff-disable": "Staff disabled", "staff-pin": "PIN changed",
     "backup": "Backup", "restore": "Restore", "data-import": "Data import", "audit-export": "Audit log exported",
 }
 AUDIT_GROUPS = {   # value -> (label, actions); "overrides" is a filter on resolve rows
-    "checks": ("Checks and entry confirmations", ("check", "entry-confirmed")),
+    "checks": ("Checks and entry confirmations", ("check", "entry-confirmed", "ocr-use")),
     "holds": ("Holds and their outcomes", ("hold", "resolve", "doctor-ask", "doctor-receipt")),
     "overrides": ("Overrides only", ("resolve",)),
     "signin": ("Sign-ins and wrong PINs", ("login", "login-failed", "login-locked")),
@@ -872,6 +945,9 @@ def audit_summary(row):
         return f'{r.PATH_LABELS.get(d.get("path"), "Hold")}' + (f' - held: {", ".join(d["held"])}' if d.get("held") else "")
     if a == "entry-confirmed":
         return "; ".join(f'{i.get("item")}: {i.get("issue")}' for i in d.get("issues", []))
+    if a == "ocr-use":
+        return (f'{d.get("offered", 0)} value(s) filled in from the photo, {d.get("kept", 0)} kept, '
+                f'{d.get("changed", 0)} corrected; {d.get("unclear", 0)} left for staff to type')
     if a.startswith("login"):
         return f'from {d.get("ip", "?")}'
     if a in ("add", "index", "index-update"):
@@ -988,7 +1064,7 @@ def lookup(kind, q):
         counts = {}
         for (drugs,) in con.execute("SELECT drugs FROM entries WHERE drugs != '' ORDER BY created_at DESC LIMIT 3000"):
             for item in re.split(r"[,;\n]", drugs or ""):
-                m = re.match(r"\s*(?:(?:tab|cap|syp|inj|t|c)\.?\s+)?([a-z][a-z-]{2,}(?: [a-z][a-z-]{2,})?)", item, re.I)
+                m = SEEN_DRUG.match(item)
                 if m:
                     name = m.group(1).strip()
                     counts.setdefault(name.lower(), [name, 0])[1] += 1
@@ -1340,6 +1416,18 @@ class Handler(BaseHTTPRequestHandler):
             if case["final"]:
                 return self.send(200, decision_page(u, cid, case))
             return self.send(200, entry_form(u, cid, case))
+        if method == "GET" and rest == ["ocr"]:
+            read = case.get("ocr") or {}
+            return self.send_json(200, {"status": read.get("status") or "off", "values": ocr.values(read),
+                                        "panel": ocr_panel(cid, read)})
+        if method == "GET" and len(rest) == 2 and rest[0] == "crop" and rest[1].isdigit():
+            crops = (case.get("ocr") or {}).get("crops") or []
+            if int(rest[1]) >= len(crops):
+                raise HttpError(404, "No such part of the slip")
+            try:
+                return self.send(200, ocr.crop_jpeg(img, crops[int(rest[1])]), "image/jpeg")
+            except ValueError:
+                raise HttpError(404, "No such part of the slip")
         if method == "POST" and rest == ["check"]:
             if case["final"]:
                 return self.redirect(f"/case/{cid}")
@@ -1350,14 +1438,20 @@ class Handler(BaseHTTPRequestHandler):
             rx_date = r.iso_date(f["rx_date"]) if f["rx_date"] else None
             if f["rx_date"] and not rx_date:
                 return self.send(400, entry_form(u, cid, case, f, error="Date must be a valid date."))
-            issues = r.review_drugs(f["drugs"])
+            # what was read from the photo and sent unchanged is ticked like any doubtful entry
+            issues = r.review_drugs(f["drugs"]) + ocr.confirmations(case.get("ocr"), f)
             confirmed = set(self.fields.get("confirm", []))
             if issues and confirmed != {str(i) for i in range(len(issues))}:
                 return self.send(200, entry_form(u, cid, case, f, issues))
-            if issues:
+            use = ocr.usage(case.get("ocr"), f)
+            if issues or use:
                 con = r.db()
                 with con:
-                    r.audit(con, "entry-confirmed", cid, {"issues": issues})
+                    if issues:
+                        r.audit(con, "entry-confirmed", cid, {"issues": [{k: v for k, v in i.items() if k != "crop"}
+                                                                         for i in issues]})
+                    if use:
+                        r.audit(con, "ocr-use", cid, use)
             finalize(cid, img, f)
             return self.redirect(f"/case/{cid}")
         if method == "POST" and rest == ["retake"]:
@@ -1366,7 +1460,7 @@ class Handler(BaseHTTPRequestHandler):
             name, data = self.files.get("image") or ("", b"")
             if not data:
                 raise HttpError(400, "Choose the new photo first")
-            new = new_case(data, Path(name).suffix.lower() or ".jpg", f"retake of {cid}")
+            new = new_case(data, Path(name).suffix.lower() or ".jpg", f"retake of {cid}", read=False)
             new_img, _ = case_files(new)
             finalize(new, new_img, case.get("fields") or {})
             if case.get("hold"):

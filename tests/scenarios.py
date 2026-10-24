@@ -1,5 +1,6 @@
 """Image transforms that simulate what happens to a prescription before it reaches the counter,
 plus the forgeries used in tests and evaluation. Shared by test_robustness.py and eval/."""
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -7,6 +8,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# the counter tests upload hundreds of slips; reading each photo (5-15 s) would only slow them down.
+# tests/test_ocr.py switches it on where it is the thing under test.
+os.environ.setdefault("RXCHECK_OCR", "off")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 import rxcheck as r  # noqa: E402
