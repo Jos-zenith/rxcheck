@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, quote
 
 import doctorping as dp
 import ocr
+import pdfpages
 import rxcheck as r
 
 MAX_UPLOAD = 15 * 1024 * 1024
@@ -124,12 +125,25 @@ def save_case(cid, data):
 
 def new_case(data, suffix, origin, read=True):
     if len(data) > MAX_UPLOAD:
-        raise HttpError(413, "Image is larger than 15 MB")
-    if suffix not in r.IMG_EXT:
-        raise HttpError(400, "Send a photo (.jpg, .png or .webp)")
+        raise HttpError(413, "File is larger than 15 MB. Ask for a photo of the slip, or only its pages.")
+    pdf = suffix == ".pdf" or pdfpages.is_pdf(data)
+    if not pdf and suffix not in r.IMG_EXT:
+        raise HttpError(400, "Send a photo (.jpg, .png or .webp) or a PDF")
     cid = f"{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
-    path = uploads() / f"{cid}{suffix}"
-    path.write_bytes(data)
+    text = [None]
+    if pdf:
+        try:
+            pages = pdfpages.pages(data)
+        except pdfpages.PdfError as ex:
+            raise HttpError(400, str(ex))
+        path = uploads() / f"{cid}.jpg"   # page 1 is the case image: the checks, the evidence, the ledger
+        path.write_bytes(pages[0][0])
+        for i, (jpg, _) in enumerate(pages[1:], 2):
+            page_path(cid, i - 1).write_bytes(jpg)
+        text = [lines for _, lines in pages]
+    else:
+        path = uploads() / f"{cid}{suffix}"
+        path.write_bytes(data)
     try:
         r.read_bgr(path)
     except ValueError:
@@ -137,31 +151,54 @@ def new_case(data, suffix, origin, read=True):
         raise HttpError(400, "That file is not a readable image")
     # pre-check without drugs: shows routine/high-risk outcomes and decodes any clinic-signed code to prefill
     pre = r.public(r.run_check(path, draw=False))
-    # reading the photo takes 5-15 s on a counter PC: it runs in the background and the form fills in when it is
-    # done. Not for a retake (already decided) or a demo sample (synthetic slip, medicines filled in for the visitor)
-    read = read and not origin.startswith("demo:") and ocr.available()
+    # reading the slip takes 5-15 s a page on a counter PC: it runs in the background and the form fills in when
+    # it is done. Not for a retake (already decided) or a demo sample (synthetic slip, filled in for the visitor).
+    # A PDF page with a text layer is read from its text, so it needs no OCR engine.
+    if not read:
+        why = "retake"
+    elif origin.startswith("demo:"):
+        why = "demo"
+    elif not ocr.enabled():
+        why = "switched off"
+    elif not ocr.available() and not all(text):
+        why = "not installed"
+    else:
+        why = None
     save_case(cid, {"origin": origin, "created": r.now(), "by": r.actor(), "pre": pre, "final": None,
-                    "hold": None, "recorded": None, "ocr": {"status": "pending"} if read else None})
-    if read:
-        threading.Thread(target=read_case, args=(cid, path, known_drug_names()), daemon=True).start()
+                    "hold": None, "recorded": None, "pages": len(text), "source": "pdf" if pdf else "photo",
+                    "ocr": {"status": "off", "why": why} if why else {"status": "pending"}})
+    if not why:
+        pages_in = [{"path": page_path(cid, i, path), "lines": lines} for i, lines in enumerate(text)]
+        threading.Thread(target=read_case, args=(cid, pages_in, known_drug_names()), daemon=True).start()
     return cid
 
 
+def page_path(cid, i, first=None):
+    """Page i (0 = the first) of a case: the case image itself, then '<cid>-p2.jpg' and so on for a PDF."""
+    if i == 0:
+        return first or case_files(cid)[0]
+    return uploads() / f"{cid}-p{i + 1}.jpg"
+
+
 def known_drug_names():
-    """Medicine names this pharmacy knows: the drug list, and names entered at this counter before."""
+    """(names, strengths) this pharmacy knows: names from the drug list and from entries at this counter, and the
+    strengths entered here for each name ({'dolo': {'650'}})."""
     table = r.drug_table() or r.EMPTY_TABLE
-    names = set(table["brands"]) | set(table["molecules"])
+    names, strengths = set(table["brands"]) | set(table["molecules"]), {}
     for (drugs,) in r.db().execute("SELECT drugs FROM entries WHERE drugs != '' ORDER BY created_at DESC LIMIT 3000"):
         for item in re.split(r"[,;\n]", drugs or ""):
             m = SEEN_DRUG.match(item)
             if m:
-                names.add(m.group(1).strip().lower())
-    return names
+                name = m.group(1).strip().lower()
+                names.add(name)
+                strengths.setdefault(name, set()).update(re.findall(r"\d+(?:\.\d+)?", item[m.end():]))
+    return names, strengths
 
 
-def read_case(cid, path, known):
-    """Background: OCR the photo and store what it read on the case. A failure only means staff type as before."""
-    res = ocr.read_slip(path, known, lambda text: r.drug_risk(text)[0] == "high")
+def read_case(cid, pages, known):
+    """Background: read the slip and store what it read on the case. A failure only means staff type as before."""
+    names, strengths = known
+    res = ocr.read_pages(pages, names, lambda text: r.drug_risk(text)[0] == "high", strengths=strengths)
     with STATE.case_lock:
         try:
             _, case = load_case(cid)
@@ -191,7 +228,8 @@ def purge_uploads():
     held = {Path(row["image"]).stem for row in r.db().execute("SELECT image FROM holds WHERE status != 'closed'")}
     removed = 0
     for p in uploads().iterdir():
-        if p.name.split(".")[0] not in held and p.stat().st_mtime < cutoff:
+        case = re.sub(r"-p\d+$", "", p.name.split(".")[0])   # a PDF's later pages go with their case
+        if case not in held and p.stat().st_mtime < cutoff:
             p.unlink(missing_ok=True)
             removed += 1
     return removed
@@ -297,6 +335,7 @@ th{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mu
 .ocr-list li{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:8px 0}
 img.crop{display:block;max-width:100%;max-height:72px;border:var(--bw) solid var(--line);border-radius:6px;background:#fff}
 .issues img.crop{margin:4px 0 6px 28px}
+.s-quiet{background:var(--bg);color:var(--ink);border-color:var(--line)}.ocr .pill{margin-right:6px}
 .today{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .today div{padding:10px 12px;border-radius:10px;background:var(--card);border:var(--bw) solid var(--line);color:var(--muted);font-size:.86rem;line-height:1.25}
 .today b{display:block;font-size:1.7rem;color:var(--ink);line-height:1.1;margin-bottom:2px}
@@ -512,11 +551,11 @@ def home_page(user):
     alerts = holds + (backup.replace('<p class="warn">', '<p class="notice notice-red">') if 'class="warn"' in backup else "")
     status = "" if 'class="warn"' in backup else f'<section class="card">{backup}</section>'
     return page("Counter", f"""{alerts}{demo_panel(user)}<div class="home"><section class="card hero" id="check"><h1>Check a prescription</h1>
-<p class="muted">Photo of the paper slip, or the image the customer forwarded. Takes about two seconds.</p>
+<p class="muted">Photo of the paper slip, the image the customer forwarded, or a PDF. Takes about two seconds.</p>
 <form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
-<label for="image" class="drop"><span class="drop-title">Prescription photo {kbd("Mod+U")}</span>
+<label for="image" class="drop"><span class="drop-title">Prescription photo or PDF {kbd("Mod+U")}</span>
 <span class="muted">Choose a file or drop it here<span class="js-only">, or paste it with Ctrl+V - the check starts by
- itself</span></span></label><input type="file" id="image" name="image" accept="image/*"
+ itself</span></span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
  required data-shortcut="upload" aria-keyshortcuts="Control+U Meta+U">
 <p><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Check prescription</button>{kbd("Mod+Enter")}</p></form></section>
 <div class="side">{today_panel(user)}{activity_panel(user)}</div></div>
@@ -578,7 +617,7 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
         pre_line += " " + plain(pre.get("reason", ""))
     err = f'<p class="warn">{esc(error)}</p>' if error else ""
     return page("Enter medicines", f"""<section class="card"><h1>What is the customer buying?</h1>
-<p class="muted">{esc(pre_line)}</p>{note}{err}{"" if signed else ocr_panel(cid, read)}
+<p class="muted">{esc(pre_line)}</p>{note}{err}{"" if signed else ocr_panel(cid, read, issues)}{pdf_note(case)}
 <form method="post" action="/case/{cid}/check" data-primary>{csrf_field(user)}
 <label for="drugs">Medicines and strengths being sold (as on the slip)</label>
 <div data-lookup="drug" data-multi><input type="text" id="drugs" name="drugs" value="{esc(f.get("drugs"))}"
@@ -597,7 +636,21 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
  autocomplete="off"></div>
 {issue_html}<p><button type="submit" aria-keyshortcuts="Control+Enter Meta+Enter">Get decision</button>{kbd("Mod+Enter")}</p>
 </form></section>
-<section class="card"><h2>The slip</h2><img class="evidence" src="/img/{cid}" alt="Prescription image as received"></section>""", user)
+<section class="card"><h2>The slip</h2><img class="evidence" src="/img/{cid}" alt="Prescription image as received">{more_pages(cid, case)}</section>""", user)
+
+
+def pdf_note(case):
+    n = case.get("pages") or 1
+    if case.get("source") != "pdf":
+        return ""
+    return (f'<p class="hint">PDF, {n} page{"s" if n != 1 else ""}. The image checks (seen before, edited copy) used '
+            f'page 1 only; the text in a PDF says what the file says, not who issued it.</p>')
+
+
+def more_pages(cid, case):
+    n = case.get("pages") or 1
+    return "".join(f'<p class="muted">Page {i}</p><img class="evidence" src="/case/{cid}/page/{i}" '
+                   f'alt="Page {i} of the PDF">' for i in range(2, n + 1))
 
 
 def crop_img(cid, n, what):
@@ -606,29 +659,77 @@ def crop_img(cid, n, what):
     return f'<img class="crop" src="/case/{cid}/crop/{n}" alt="The part of the slip read as {esc(what)}">'
 
 
-def ocr_panel(cid, read):
-    """What the photo reading found: filled into empty fields, or shown for staff to type. '' when OCR is off."""
+OCR_STATES = {   # state -> (label, pill class). One of these is always shown, so staff know what the form holds
+    "reading": ("Reading", "s-quiet"),
+    "ready": ("Ready", "v-GREEN"),
+    "confirm": ("Needs confirmation", "v-AMBER"),
+    "blocked": ("Check blocked", "v-RED"),
+    "failed": ("Could not read", "s-quiet"),
+    "disabled": ("OCR disabled", "s-quiet"),
+}
+OFF_REASONS = {
+    "switched off": "Photo reading is switched off on this counter (RXCHECK_OCR=off).",
+    "not installed": "Photo reading is not installed on this counter (see requirements-ocr.txt).",
+    "demo": "Sample slips are filled in for you; the photo is not read.",
+}
+
+
+def ocr_state(read, issues=None):
+    """reading | ready | confirm | blocked | failed | disabled. 'blocked' = the form was sent and some entries
+    still need a tick; 'confirm' = what was filled in will need ticks if it is sent unchanged."""
     st = (read or {}).get("status")
+    if issues:
+        return "blocked"
     if st == "pending":
-        return (f'<div class="ocr" id="ocr" role="status" data-ocr-pending="/case/{cid}/ocr"><p><b>Reading the photo</b> '
-                f'to fill in what it can (5-15 s, on this PC). You can start typing: nothing you type is replaced.</p>'
-                f'<p class="hint">Without JavaScript, <a href="/case/{cid}">reload this page</a> before typing.</p></div>')
+        return "reading"
     if st == "failed":
-        return ('<div class="ocr" id="ocr" role="status"><p class="hint">The photo could not be read automatically. '
-                'Type the medicines from the slip.</p></div>')
-    if st != "done":
-        return ""
+        return "failed"
+    if st == "done":
+        return "confirm" if ocr.confirmations(read, ocr.values(read)) else "ready"
+    return "disabled"
+
+
+def ocr_panel(cid, read, issues=None):
+    """The reading's state, what it found (filled into empty fields), and what it could not read (shown with the
+    part of the slip, for staff to type)."""
+    read = read or {}
+    state = ocr_state(read, issues)
+    label, cls = OCR_STATES[state]
+    pages = f" ({read['pages']} pages)" if (read.get("pages") or 1) > 1 else ""
+    if state == "confirm":
+        label += f" ({len(ocr.confirmations(read, ocr.values(read)))})"
+    chip = f'<span class="pill {cls}" data-ocr-chip>{esc(label)}</span> '
+    attrs = f'class="ocr" id="ocr" role="status" data-ocr-state="{state}"'
+    if state == "reading":
+        return (f'<div {attrs} data-ocr-pending="/case/{cid}/ocr"><p>{chip}<b>Reading the slip</b> to fill in what it '
+                f'can (5-15 s a page, on this PC). You can start typing: nothing you type is replaced.</p>'
+                f'<p class="hint">Without JavaScript, <a href="/case/{cid}">reload this page</a> before typing.</p></div>')
+    if state == "failed":
+        return (f'<div {attrs}><p>{chip}The slip could not be read automatically. Type the medicines from the slip.'
+                f'</p></div>')
+    if state == "disabled" or (state == "blocked" and read.get("status") != "done"):
+        why = OFF_REASONS.get(read.get("why"), "The slip was not read for this check.")
+        lead = (f"Tick the {len(issues)} item(s) below, or correct them, to continue." if state == "blocked"
+                else "Type the medicines from the slip.")
+        return f'<div {attrs}><p>{chip}{esc(why)} {esc(lead)}</p></div>'
     found = [d["text"] for d in read.get("drugs", [])]
-    found += [f'{label} {read[k]["value"]}' for k, label in (("regn", "Regn No"), ("doctor", "doctor"),
-                                                             ("rx_date", "date")) if read.get(k)]
-    head = (f'<p><b>Read from the photo:</b> {esc(", ".join(found))}. Filled into empty fields only - check each one '
-            f'against the slip; anything that needs a tick is asked when you continue.</p>' if found else
-            '<p><b>Nothing could be filled in from the photo.</b> Type the medicines from the slip.</p>')
+    found += [f'{lbl} {read[k]["value"]}' for k, lbl in (("regn", "Regn No"), ("doctor", "doctor"),
+                                                         ("rx_date", "date")) if read.get(k)]
+    if state == "blocked":
+        lead = f"Tick the {len(issues)} item(s) below against the slip, or correct them, to continue."
+    elif state == "confirm":
+        lead = "Filled into empty fields only. Check each one against the slip; the marked ones are ticked when you continue."
+    else:
+        lead = "Filled into empty fields only. Check each one against the slip."
+    head = (f'<p>{chip}<b>Read from the slip{pages}:</b> {esc(", ".join(found))}. {esc(lead)}</p>' if found else
+            f'<p>{chip}<b>Nothing could be filled in from the slip{pages}.</b> Type the medicines from the slip.</p>')
+    unread = (f'<p class="hint">Page(s) {", ".join(str(p) for p in read["unread"])} could not be read: photo reading '
+              f'is not installed, and the page has no text layer.</p>' if read.get("unread") else "")
     unclear = "".join(f'<li>{crop_img(cid, u.get("crop"), u["text"])}<span>Read as <b>{esc(u["text"])}</b>: '
                       f'{esc(u["why"])}. Not filled in - type it if it is being sold.</span></li>'
                       for u in read.get("unclear", []))
     unclear = f'<ul class="ocr-list">{unclear}</ul>' if unclear else ""
-    return f'<div class="ocr" id="ocr" role="status">{head}{unclear}</div>'
+    return f'<div {attrs}>{head}{unread}{unclear}</div>'
 
 
 def decision_page(user, cid, case, error="", notice=""):
@@ -682,8 +783,8 @@ def decision_page(user, cid, case, error="", notice=""):
         ev += (f'<p>Side by side with {esc(m["ledger_id"])}:</p>'
                f'<img class="evidence" src="/evidence/{quote(png.name)}" alt="Comparison with the recorded slip">')
     else:
-        ev = f'<img class="evidence" src="/img/{cid}" alt="Prescription image as received">'
-    evidence = f'<section class="card evidence-card"><h2>Evidence</h2>{ev}</section>'
+        ev = f'<img class="evidence" src="/img/{cid}" alt="Prescription image as received">{more_pages(cid, case)}'
+    evidence = f'<section class="card evidence-card"><h2>Evidence</h2>{pdf_note(case)}{ev}</section>'
 
     # high-risk dispensing goes into the image ledger (alongside the H1 register) - offered only once it is
     # allowed: a GREEN check, or a hold a pharmacist closed as confirmed / dispensed after review
@@ -998,6 +1099,56 @@ def csv_cell(v):
     return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
 
 
+OCR_REPORT_DAYS = (7, 14, 30, 90)
+
+
+def ocr_rows(days):
+    since = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+    return [(row["at"], row["actor"], row["ref"], json.loads(row["detail"] or "{}")) for row in r.db().execute(
+        "SELECT at, actor, ref, detail FROM audit WHERE action = 'ocr-use' AND at >= ? ORDER BY seq", (since,))]
+
+
+def pct(a, b):
+    return f"{100 * a / b:.0f}%" if b else "-"
+
+
+def ocr_report_page(user, days):
+    """Pilot figures for the photo reading: acceptance and correction per field and confidence band, from the
+    audit trail (counts only). This is what FILL_MIN / CONFIRM_ABOVE in app/ocr.py should be set from."""
+    rep = ocr.report([d for *_, d in ocr_rows(days)])
+    few = 30
+    rows = "".join(
+        f'<tr><th scope="row">{esc({"medicine": "Medicine", "regn": "Regn No", "doctor": "Doctor", "rx_date": "Date"}.get(t["field"], t["field"]))}</th>'
+        f'<td>{esc(t["band"])}</td><td>{t["filled"]}</td><td>{t["kept"]} ({pct(t["kept"], t["filled"])})</td>'
+        f'<td>{t["filled"] - t["kept"]} ({pct(t["filled"] - t["kept"], t["filled"])})</td><td>{t["ticked"]}</td>'
+        f'<td>{t["unclear"]}</td><td>{t["unclear_right"]} ({pct(t["unclear_right"], t["unclear"])})</td>'
+        f'<td>{"few - not yet a basis for a threshold" if t["filled"] + t["unclear"] < few else ""}</td></tr>'
+        for t in rep["table"])
+    table = (f'<table><thead><tr><th scope="col">Field</th><th scope="col">Confidence</th>'
+             f'<th scope="col">Filled in</th><th scope="col">Kept as read (acceptance)</th>'
+             f'<th scope="col">Changed by staff (correction)</th><th scope="col">Needed a tick</th>'
+             f'<th scope="col">Unclear, not filled in</th><th scope="col">...staff typed what was read</th>'
+             f'<th scope="col"></th></tr></thead><tbody>{rows}</tbody></table>' if rows else
+             '<p class="muted">No photo readings recorded in this period.</p>')
+    choose = " · ".join(f'<a href="/ocr-report?days={d}"' + (' aria-current="page"' if d == days else "") + f'>{d} days</a>'
+                        for d in OCR_REPORT_DAYS)
+    median = f'{rep["median_ms"] / 1000:.1f} s' if rep["median_ms"] else "-"
+    return page("Photo reading report", f"""<section class="card"><h1>Photo reading: pilot figures</h1>
+<p class="muted">Last {days} days: {choose}. From the audit trail, counts only - no slip text, no patient.</p>
+<div class="today"><div><b>{rep["checks"]}</b>checks with the slip read</div>
+<div class="t-green"><b>{rep["done"]}</b>read before the form was sent</div>
+<div class="t-amber"><b>{rep["pending"]}</b>sent while still reading</div>
+<div class="t-red"><b>{rep["failed"]}</b>could not be read</div>
+<div><b>{median}</b>median reading time</div></div>
+<h2>Acceptance by field and confidence</h2>{table}
+<p class="hint">Acceptance = filled-in values staff sent unchanged; correction = values they changed or removed. A
+low acceptance in a band means values there should not be filled in, or should need a tick (FILL_MIN and
+CONFIRM_ABOVE in app/ocr.py). Unclear readings that staff typed exactly as read suggest a band could be filled in.
+Small counts mean little.</p>
+<p><a href="/ocr-report.csv?days={days}" download>Download one row per reading as CSV</a></p></section>
+<p><a href="/audit">Audit log</a> · <a href="/" data-shortcut="next">Back to the counter</a></p>""", user)
+
+
 def audit_page(user):
     actors = [x[0] for x in r.db().execute("SELECT DISTINCT actor FROM audit ORDER BY actor COLLATE NOCASE")]
     groups = [{"value": k, "label": v[0]} for k, v in AUDIT_GROUPS.items()]
@@ -1012,7 +1163,7 @@ def audit_page(user):
 <p class="muted">Every check, hold, outcome, sign-in, staff and data change, newest first. The log is append-only:
 entries cannot be edited or deleted. Each export is itself recorded.</p>
 <div id="rx-audit" data-staff="{esc(json.dumps(actors))}" data-groups="{esc(json.dumps(groups))}">
-<p><a href="/audit.csv" download>Download the full log as CSV</a></p>{table}</div></section>
+<p><a href="/audit.csv" download>Download the full log as CSV</a> · <a href="/ocr-report">Photo reading report</a></p>{table}</div></section>
 <p><a href="/" data-shortcut="next">Back to the counter</a></p>""", user)
 
 
@@ -1335,6 +1486,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, holds_page(u))
         if method == "GET" and parts == ["api", "lookup"]:
             return self.send_json(200, {"items": lookup(self.query("kind"), self.query("q"))})
+        if method == "GET" and parts in (["ocr-report"], ["ocr-report.csv"]):
+            if u["role"] != "pharmacist":
+                raise HttpError(403, "Only a pharmacist can open the photo reading report")
+            q = self.query("days")
+            days = int(q) if q.isdigit() and 1 <= int(q) <= 366 else 14
+            if parts == ["ocr-report"]:
+                return self.send(200, ocr_report_page(u, days))
+            return self.ocr_csv(days)
         if method == "GET" and parts in (["audit"], ["audit.csv"], ["api", "audit"]):
             if u["role"] != "pharmacist":
                 raise HttpError(403, "Only a pharmacist can open the audit log")
@@ -1386,6 +1545,27 @@ class Handler(BaseHTTPRequestHandler):
             return self.doctor(parts[1], parts[3])
         raise HttpError(404, "Page not found")
 
+    def ocr_csv(self, days):
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["at", "actor", "case", "status", "engine", "read_ms", "field", "confidence_band", "name_on_file",
+                    "high_risk", "filled_in", "needed_tick", "kept_as_read"])
+        n = 0
+        yn = {True: "yes", False: "no", None: ""}
+        for at, actor, ref, d in ocr_rows(days):
+            for x in d.get("readings") or [None]:
+                x = x or {}
+                w.writerow([csv_cell(v) for v in (at, actor, ref, d.get("status", "done"), d.get("engine"), d.get("ms"),
+                                                  x.get("field"), x.get("band"), yn[x.get("known")], yn[x.get("high")],
+                                                  yn[x.get("filled")], yn[x.get("tick")], yn[x.get("kept")])])
+                n += 1
+        con = r.db()
+        with con:
+            r.audit(con, "audit-export", None, {"what": "ocr-report", "days": days, "rows": n})
+        name = f"rxcheck-ocr-{datetime.now():%Y%m%d-%H%M}.csv"
+        return self.send(200, "﻿" + buf.getvalue(), "text/csv; charset=utf-8",
+                         [("Content-Disposition", f'attachment; filename="{name}"')])
+
     def audit_route(self, parts):
         if parts == ["audit"]:
             return self.send(200, audit_page(self.user))
@@ -1424,10 +1604,17 @@ class Handler(BaseHTTPRequestHandler):
             crops = (case.get("ocr") or {}).get("crops") or []
             if int(rest[1]) >= len(crops):
                 raise HttpError(404, "No such part of the slip")
+            c = crops[int(rest[1])]
             try:
-                return self.send(200, ocr.crop_jpeg(img, crops[int(rest[1])]), "image/jpeg")
-            except ValueError:
+                return self.send(200, ocr.crop_jpeg(page_path(cid, c["page"], img), c["box"]), "image/jpeg")
+            except (ValueError, OSError):
                 raise HttpError(404, "No such part of the slip")
+        if method == "GET" and len(rest) == 2 and rest[0] == "page" and rest[1].isdigit():
+            n = int(rest[1])
+            p = page_path(cid, n - 1, img) if 1 <= n <= (case.get("pages") or 1) else None
+            if not p or not p.is_file():
+                raise HttpError(404, "No such page")
+            return self.send(200, p.read_bytes(), "image/jpeg")
         if method == "POST" and rest == ["check"]:
             if case["final"]:
                 return self.redirect(f"/case/{cid}")

@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 # app/ocr.py is imported by the counter app; the OCR engine itself is optional and not installed here
 # (a public demo shows synthetic slips, filled in for the visitor)
-COPY app/rxcheck.py app/counter_app.py app/sharedindex.py app/doctorping.py app/ocr.py ./app/
+COPY app/rxcheck.py app/counter_app.py app/sharedindex.py app/doctorping.py app/ocr.py app/pdfpages.py ./app/
 COPY docker-entrypoint.sh ./
 COPY data/*.json ./data/
 # synthetic sample slips for the public demo (regenerated and checked by tests/test_deploy.py)

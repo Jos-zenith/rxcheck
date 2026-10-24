@@ -7,3 +7,5 @@ numpy==2.4.6
 Pillow==12.3.0
 cryptography==50.0.2
 qrcode==8.2
+# PDF prescriptions: renders each page for the checks and the slip reader (app/pdfpages.py)
+pypdfium2==5.5.0

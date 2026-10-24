@@ -48,7 +48,7 @@ files = sorted(set(tracked) | {p.relative_to(ROOT).as_posix() for p in ROOT.rglo
 inside = [f for f in files if docker_included(f, patterns)]
 check(f"image build context is code + default data only ({', '.join(inside)})",
       set(inside) == {"requirements.txt", "app/rxcheck.py", "app/counter_app.py", "app/sharedindex.py", "app/doctorping.py",
-                      "app/ocr.py",
+                      "app/ocr.py", "app/pdfpages.py",
                       "docker-entrypoint.sh",
                       "data/drug_risk.json", "data/policy.json", "data/registry.json",
                       "static/app.js", "static/app.css",
