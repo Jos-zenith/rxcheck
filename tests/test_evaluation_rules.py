@@ -1,7 +1,7 @@
 """Evaluation safeguards: a held-out set must be independent, and stays independent only while the
 thresholds are frozen. No images needed.
 
-Run:  python tests/test_eval.py
+Run:  python tests/test_evaluation_rules.py
 """
 import json
 import sys
@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "eval"))
-import evaluate as ev  # noqa: E402
+import score_image_checks as ev  # noqa: E402
 
 ok = True
 

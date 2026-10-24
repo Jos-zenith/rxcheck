@@ -1,5 +1,5 @@
 {
-  "_note": "Synthetic sample slips for the public demo. Not real prescriptions. Regenerate with tests/make_demo_samples.py.",
+  "_note": "Synthetic sample slips for the public demo. Not real prescriptions. Regenerate with tests/build_demo_samples.py.",
   "reference": {
     "id": "RX-DEMO-0812",
     "dispensed": "2026-08-12",
@@ -27,7 +27,7 @@
       "reading": {
         "engine": "rapidocr_onnxruntime 1.4.4",
         "recorded_on": "2026-10-24",
-        "ms": 11743,
+        "ms": 11297,
         "segments": [
           {
             "box": [

@@ -9,7 +9,7 @@ before, was it edited, does the Regn No belong to that doctor, did the clinic si
 > means nothing contradicts the slip, not that a doctor issued it, unless it carries a clinic-signed code that
 > verified. A held slip is not, by itself, proof of fraud. Nothing here is validated at a real counter yet.
 
-Related documents: [docs/ANALYSIS.md](docs/ANALYSIS.md) (technical overview) · [docs/field-validation.md](docs/field-validation.md) (what evidence is still needed, and how to collect it) · [docs/refill-tracking.md](docs/refill-tracking.md) (next: quantities and repeats, designed, not built) · [docs/usability-test.md](docs/usability-test.md) (timed counter test with pharmacists, synthetic cases) · [docs/blog.md](docs/blog.md) (public write-up, draft)
+Related documents: [docs/technical-overview.md](docs/technical-overview.md) (technical overview and why it is triage, not a verdict) · [docs/field-validation-protocol.md](docs/field-validation-protocol.md) (what evidence is still needed, and how to collect it) · [docs/refill-tracking-design.md](docs/refill-tracking-design.md) (next: quantities and repeats, designed, not built) · [docs/usability-test-protocol.md](docs/usability-test-protocol.md) (timed counter test with pharmacists, synthetic cases)
 
 ## Why compliance first
 
@@ -41,7 +41,7 @@ slips", for three reasons:
 | Reports | Audit log with filters and CSV export (pharmacists), `rxcheck stats` per person, the photo-reading report |
 
 The paper **H1 register** stays the legal record: rxcheck does not yet hold the register's quantities and
-repeats. Refill and quantity tracking ([design](docs/refill-tracking.md)) is the next step, for exactly the pattern
+repeats. Refill and quantity tracking ([design](docs/refill-tracking-design.md)) is the next step, for exactly the pattern
 of an H1 slip presented again and again.
 
 **On every slip (the triage)**
@@ -76,7 +76,7 @@ slip would be held". The same slip asking for a high-risk medicine is held for t
   10 s on a PC, in the background.
 - **No real data yet.** The registry is empty, the drug list is an illustrative sample, every test image is
   synthetic, and no pharmacy has used it. The base rate of edited or invented slips, the hold rate and the
-  override rate are all unknown until a shadow pilot ([protocol](docs/field-validation.md)).
+  override rate are all unknown until a shadow pilot ([protocol](docs/field-validation-protocol.md)).
 - **A bridge product.** Digital prescriptions (ABDM) will replace paper slips, more slowly in tier-2 clinics. The
   compliance record outlasts the paper; the image checks do not.
 
@@ -86,22 +86,30 @@ slip would be held". The same slip asking for a high-risk medicine is held for t
 |---|---|
 | **Users** | Retail pharmacists and counter staff, initially single pharmacies in tier-2 cities, with one or more billing counters; the pharmacy owner for the records |
 | **In scope** | Hold-and-escalate for high-risk sales with outcomes, roles and per-person override counts; hash-chained audit trail and exports; authenticated doctor confirmation (simulated service); re-use and edit detection; no-image index of every checked slip; hash-only shared index across pharmacies (simulated network); prescriber registry check; clinic-signed issuance codes; drug-risk tiers with look-alike names; confirmation of ambiguous entries; slip reading of photos and PDFs (optional, offline OCR); pre-checking images as they arrive; counter app with staff sign-in; audited data imports; verify, backup and restore; offline operation |
-| **Next** | Refill and quantity tracking for H1 / X repeats ([design](docs/refill-tracking.md)); a shadow pilot; an official registry source |
+| **Next** | Refill and quantity tracking for H1 / X repeats ([design](docs/refill-tracking-design.md)); a shadow pilot; an official registry source |
 | **Out of scope (now)** | Proving issuance for slips without a signed code (needs a call to the clinic); reading handwriting reliably; replacing the statutory H1 register; a production shared-index service (HTTPS, member authentication, key rotation); verifying e-prescription platforms (a PDF is accepted and read, but its text proves no more than a photo); edit detection beyond page 1 of a PDF; clinical appropriateness (interactions, allergies, dosing) |
 
 ## Project structure
 
-| Path | Purpose |
-|---|---|
-| `app/` | Python verification engine, CLI, counter web app, and optional slip reading (OCR) |
-| `data/` | Empty prescriber registry plus illustrative policy and drug-risk defaults |
-| `docs/` | Technical overview (ANALYSIS.md), field-validation protocol, refill-tracking design and public write-up |
-| `eval/` | Dataset builders and evaluators; generated datasets and results stay local |
-| `tests/` | Automated checks and synthetic test-image generation |
-| `web/` | Vue/Vite source for the counter UI |
-| `static/` | Committed browser bundle served by the Python app |
-| `site/` | Static landing page for the project |
-| `demo/` | Synthetic sample slips and the slip reader's scores for the public demo |
+```
+app/                      the application (Python, standard library server)
+  rxcheck.py                engine and command line: check, serve, holds, backup, ...
+  counter_app.py            the counter web app
+  slip_reader.py            reading the slip photo (OCR, optional) and what it may fill in
+  pdf_pages.py              PDF prescriptions: page images and text
+  doctor_confirmation.py    the doctor's signed answer (simulated service)
+  shared_index.py           slips seen at other pharmacies (simulated network)
+data/                     prescriber registry (empty), drug-risk list (sample), policy switches
+demo/                     synthetic sample slips and scores for the public demo
+docs/                     technical overview, field-validation and usability-test protocols, refill-tracking design
+eval/                     build and score the labelled evaluation sets (outputs stay local)
+tests/                    automated tests, plus the synthetic slips and PDFs they use
+web/  ->  static/         counter UI sources (Vue) and the committed build the app serves
+landing-page/             static project landing page
+Dockerfile, docker-entrypoint.sh, render.yaml, requirements*.txt     deployment
+```
+
+Local only, never committed: `ledger/` (the database), `backups/`, `inbox/`, `reports/`, `samples/`.
 
 ## How it works
 
@@ -136,7 +144,7 @@ So routine prescriptions *are* covered for re-use and changed requests, but not 
 
 ### Doctor confirmation: the prescriber's own signed answer
 
-"Clinic confirmed" used to be recorded on the pharmacist's word. `app/doctorping.py` replaces the word with evidence, for the holds where it matters (a high-risk medicine waiting for a call):
+"Clinic confirmed" used to be recorded on the pharmacist's word. `app/doctor_confirmation.py` replaces the word with evidence, for the holds where it matters (a high-risk medicine waiting for a call):
 
 | Step | What happens | Why it holds up |
 |---|---|---|
@@ -169,7 +177,7 @@ This is a **simulation**: the service is a folder (keys, `service.db`, a mock ph
 
 ### Shared index: a clone dispensed at another pharmacy
 
-The local ledger only knows this pharmacy's slips, so a clone of a slip dispensed across town looks new. `app/sharedindex.py` adds a network of member pharmacies and a hub, **without sharing prescriptions**:
+The local ledger only knows this pharmacy's slips, so a clone of a slip dispensed across town looks new. `app/shared_index.py` adds a network of member pharmacies and a hub, **without sharing prescriptions**:
 
 | Step | What happens | What leaves the pharmacy |
 |---|---|---|
@@ -184,7 +192,7 @@ The projection is derived from a **network key the hub operator does not hold**,
 
 **Never more lenient when it cannot ask.** If the hub (or a candidate's owner) is unreachable, the slip is treated as new *and unchecked*: high-risk medicines wait for a call even when `confirm_new_high_risk` is off, routine sales continue. The slip is recorded as unchecked; `rxcheck shared sync` publishes what could not be published and **asks again**; a match found then opens a hold and an audit record (`shared-late-match`) instead of being dropped.
 
-**Measured limits (`tests/test_shared.py`).** Stage 2 inherits the local no-image index, so a phone-screen photo, a heavily blurred photo and a 5x-forwarded copy are **not** recognised across pharmacies (the slip is then treated as new, so high-risk medicines are still held by the new-slip policy). A density-only alignment fallback was tried and rejected: it cannot tell a phone-screen photo (0.71-0.74) from a different slip on the same letterhead (0.82-0.84). Matched: WhatsApp forward, cropped photo, dim light, edited clone (added drug line), edited clone then WhatsApp. A washed-out photocopy is sent back for a retake by the quality gate before any network call.
+**Measured limits (`tests/test_shared_index.py`).** Stage 2 inherits the local no-image index, so a phone-screen photo, a heavily blurred photo and a 5x-forwarded copy are **not** recognised across pharmacies (the slip is then treated as new, so high-risk medicines are still held by the new-slip policy). A density-only alignment fallback was tried and rejected: it cannot tell a phone-screen photo (0.71-0.74) from a different slip on the same letterhead (0.82-0.84). Matched: WhatsApp forward, cropped photo, dim light, edited clone (added drug line), edited clone then WhatsApp. A washed-out photocopy is sent back for a retake by the quality gate before any network call.
 
 ```bash
 python app/rxcheck.py shared hub-init hub/ --key-out network.key   # key goes to member pharmacies in person, not the hub operator
@@ -260,7 +268,7 @@ An AI-generator marker in the file, or a file dated before the prescription date
 
 Anything softer is "unverified" (AMBER for high-risk medicine, so it still waits for confirmation). A clinic-signed code that fails is RED for high-risk medicine, because the check is cryptographic. The message names the innocent explanation too: the clinic may have changed its key.
 
-**This table is the policy.** `tests/test_docs.py` checks every row against `decide()` under both policy settings, and fails if another document carries its own decision table.
+**This table is the policy.** `tests/test_readme_tables.py` checks every row against `decide()` under both policy settings, and fails if another document carries its own decision table.
 
 ### After a warning: retake, counter check or call
 
@@ -294,7 +302,7 @@ The check takes a second or two. At 30 images a day that is about a minute of co
 
 Overrides are the abuse point, and a pharmacy can't be relied on to police itself. Rate alerts **across pharmacies** need someone outside the pharmacy to receive them: a chain's head office, a licensing authority or a shared service. Only counts (checks, holds, overrides per person) would be sent, never prescriptions. That reporting channel is not built.
 
-This table is checked against `next_step()` by `tests/test_docs.py`, and `tests/test_robustness.py` checks that all 6,089 warning combinations of flags, risk, prescriber, issuance and policy name an explicit step.
+This table is checked against `next_step()` by `tests/test_readme_tables.py`, and `tests/test_image_checks.py` checks that all 6,089 warning combinations of flags, risk, prescriber, issuance and policy name an explicit step.
 
 ### Hold and escalate
 
@@ -352,7 +360,7 @@ Today there is no shared index, so the first rule is how the tool already works.
 
 ### Reading the slip (OCR): a typing aid, not a check
 
-Typing is the main friction for slips without a signed code, so the counter can read the photo (`app/ocr.py`, RapidOCR on onnxruntime). It runs **on the counter PC, offline**: no image or text leaves the pharmacy. It takes 5-15 s on a typical PC, so it runs in the background: the form opens at once and fills in when the reading is done. Nothing staff have typed is replaced, and a clinic-signed code always wins.
+Typing is the main friction for slips without a signed code, so the counter can read the photo (`app/slip_reader.py`, RapidOCR on onnxruntime). It runs **on the counter PC, offline**: no image or text leaves the pharmacy. It takes 5-15 s on a typical PC, so it runs in the background: the form opens at once and fills in when the reading is done. Nothing staff have typed is replaced, and a clinic-signed code always wins.
 
 What it does with each reading:
 
@@ -378,10 +386,10 @@ Printed slips read well (test: name, strength, Regn No, doctor and date all corr
 ```bash
 pip install -r requirements-ocr.txt
 pip install --no-deps rapidocr_onnxruntime==1.4.4   # without its deps: it asks for a second, non-headless OpenCV
-python app/ocr.py slip.jpg                          # what it reads from one photo, and what it would fill in
+python app/slip_reader.py slip.jpg                          # what it reads from one photo, and what it would fill in
 ```
 
-`RXCHECK_OCR=off` switches it off. It is **not installed in the container image**: the Render *starter* instance has half a CPU and 512 MB, where one reading would take about a minute and could run out of memory. The home page says so next to the photo field (*Slip reading on / not installed / switched off*), so nobody expects a reading that is not there. Instead the public demo has a **Printed slip** sample that replays a **recorded reading**: the text pieces, boxes and confidences the real engine read from `demo/printed.jpg`, stored in `demo/samples.json`. Only the engine step is replayed - the fields filled in, the ticks, the cut-outs, the states and the check all run live - and the panel says it is a recorded reading. `tests/make_demo_samples.py` re-records it whenever the engine is installed, and `tests/test_ocr.py` fails if the recording no longer matches a fresh reading of that image. The demo home page also shows *What this demo includes* (and what it does not), the reader's scores on the labelled set (`demo/ocr-results.json`, written by `eval/ocr/score.py`, counts only), and the commands to run it with live reading.
+`RXCHECK_OCR=off` switches it off. It is **not installed in the container image**: the Render *starter* instance has half a CPU and 512 MB, where one reading would take about a minute and could run out of memory. The home page says so next to the photo field (*Slip reading on / not installed / switched off*), so nobody expects a reading that is not there. Instead the public demo has a **Printed slip** sample that replays a **recorded reading**: the text pieces, boxes and confidences the real engine read from `demo/printed.jpg`, stored in `demo/samples.json`. Only the engine step is replayed - the fields filled in, the ticks, the cut-outs, the states and the check all run live - and the panel says it is a recorded reading. `tests/build_demo_samples.py` re-records it whenever the engine is installed, and `tests/test_slip_reader.py` fails if the recording no longer matches a fresh reading of that image. The demo home page also shows *What this demo includes* (and what it does not), the reader's scores on the labelled set (`demo/slip-reader-scores.json`, written by `eval/score_slip_reader.py`, counts only), and the commands to run it with live reading.
 
 **PDFs.** A page with a text layer (printed from clinic software) is read from that text, so it needs no OCR engine and its readings are reported in their own band, "PDF text". A scanned page is read by OCR like a photo. Locked, unreadable, empty or over-long PDFs (more than 6 pages) are refused with a message staff can act on.
 
@@ -398,7 +406,7 @@ python app/ocr.py slip.jpg                          # what it reads from one pho
 
 **Pilot figures.** *Audit log → Photo reading report* (pharmacists) shows, for the last 7-90 days, how many checks had the slip read, how many were sent while still reading or could not be read, the median reading time, and a table per field and confidence band: values filled in, **kept as read (acceptance)**, **changed by staff (correction)**, ticks needed, and unclear readings that staff then typed exactly as read. That table is what the 0.80 / 0.95 thresholds should be set from; rows with fewer than 30 readings are marked as too few. *Download one row per reading as CSV* exports the same, without any slip text; the export is recorded in the audit trail.
 
-**Measured on the labelled set.** `python eval/ocr/build_ocr_set.py` generates 50 synthetic slips into `samples/ocr/` (git-ignored): 30 printed, 5 in poor light (dim, side shadow, glare, angled, forwarded), 10 *handwriting-style fonts* and 5 multi-page PDFs (3 with a text layer, 2 scanned). `python eval/ocr/score.py` reads each once and scores it for a new counter (only the drug list on file) and an established one (every medicine entered before). Its key figure is **silent errors**: values filled in wrong that need no tick.
+**Measured on the labelled set.** `python eval/build_slip_reader_set.py` generates 50 synthetic slips into `samples/ocr/` (git-ignored): 30 printed, 5 in poor light (dim, side shadow, glare, angled, forwarded), 10 *handwriting-style fonts* and 5 multi-page PDFs (3 with a text layer, 2 scanned). `python eval/score_slip_reader.py` reads each once and scores it for a new counter (only the drug list on file) and an established one (every medicine entered before). Its key figure is **silent errors**: values filled in wrong that need no tick.
 
 Results on this PC (2026-10-24, synthetic slips, 180 medicines):
 
@@ -413,16 +421,16 @@ Results on this PC (2026-10-24, synthetic slips, 180 medicines):
 
 Every medicine ended up filled in right, shown as unclear, filled in wrong *with a tick asked*, or missed (11 of 180, left for staff to type). The first scoring run found **10 silent errors** on an established counter (strengths cut short: "Telma 40" read as "Telma 4", "Dolo 650" as "Dolo 65"; doses read as strengths); the parser fixes and the strength-history rule above brought that to zero on this set. A real counter will see misreads this set does not contain, which is why the tick rules do not rely on the parser being right.
 
-The handwriting-style fonts are far tidier than a doctor's pen, so their row is **not** a handwriting score. Real slips from the consented field study go in `eval/field/ocr/` (git-ignored) with a `labels.json` shaped like `eval/ocr/labels-template.json`; the scorer then reports them as `real-...` rows.
+The handwriting-style fonts are far tidier than a doctor's pen, so their row is **not** a handwriting score. Real slips from the consented field study go in `eval/field/ocr/` (git-ignored) with a `labels.json` shaped like `eval/real_slip_labels_template.json`; the scorer then reports them as `real-...` rows.
 
-**Browser test.** `tests/test_browser.py` drives the installed Edge or Chrome (Playwright, no browser download): sign in, choose a photo, see *Reading*, type a field, see the others fill in without it, the look-alike shown with its loaded cut-out, *Check blocked* with three ticks, the browser refusing to send without them, the decision after them; then a PDF, and *OCR disabled*. It is skipped when Playwright (`pip install playwright==1.64.1`) or a browser is missing.
+**Browser test.** `tests/test_browser_flow.py` drives the installed Edge or Chrome (Playwright, no browser download): sign in, choose a photo, see *Reading*, type a field, see the others fill in without it, the look-alike shown with its loaded cut-out, *Check blocked* with three ticks, the browser refusing to send without them, the decision after them; then a PDF, and *OCR disabled*. It is skipped when Playwright (`pip install playwright==1.64.1`) or a browser is missing.
 
 Each person signs in with their own PIN (`rxcheck staff add NAME --role pharmacist|staff`), so the audit trail records who checked and who approved. Sessions end after 30 idle minutes or one 10-hour shift. Five wrong PINs lock that name for 10 minutes. Disabling a staff member signs them out at once. Every form carries an anti-forgery token, and the pages forbid framing and external content.
 
 ### Counter ergonomics and accessibility
 
 - **Keyboard shortcuts.** `Ctrl+U` (`⌘U` on a Mac) focuses the photo input and opens the file picker; on a finished case it goes straight to the next customer. `Ctrl+Enter` sends the page's main form (*Check*, *Get decision*, *Check the new photo*) with the browser's own validation, so a required field or an unticked "confirm this entry" box still stops it. `?` lists the shortcuts. Recording a hold outcome (confirmed, refused, override) **never** has a shortcut. A form can only be sent once until the page changes, so a double press does not check a slip twice.
-- **Text size and contrast.** The header has text size (100–150%, the whole page scales) and a high-contrast switch. The choice is kept per counter PC in a cookie and rendered by the server, so the first paint is already right. Until someone chooses, the app follows the operating system's "increase contrast" setting. All text meets **WCAG AAA (7:1)** in all four themes (standard and high contrast, light and dark), and focus rings and field borders meet 3:1. `tests/test_counter_ux.py` measures every pair from the stylesheet itself.
+- **Text size and contrast.** The header has text size (100–150%, the whole page scales) and a high-contrast switch. The choice is kept per counter PC in a cookie and rendered by the server, so the first paint is already right. Until someone chooses, the app follows the operating system's "increase contrast" setting. All text meets **WCAG AAA (7:1)** in all four themes (standard and high contrast, light and dark), and focus rings and field borders meet 3:1. `tests/test_counter_usability.py` measures every pair from the stylesheet itself.
 - **Lookups.** The medicine, Regn No, doctor and patient fields suggest from this pharmacy's own data: the drug list (high-risk marked in words), medicines entered here before, the prescriber registry (verified or not), prescribers on earlier slips, and patient names typed here before. They follow the ARIA combobox pattern (arrows, Enter, Esc, screen-reader announcements). Two safeguards are built in. A suggestion fills **only its own field**: choosing a doctor never fills in the Regn No, nor the other way round, because the prescriber check compares the two *as written on the slip*. And medicine suggestions are **names only**: the strength is always typed from the slip.
 - **Who did what.** The counter and holds screens show the last check and the last override (who, when, and the override's note). Each decision shows who checked it, and each hold shows its history: who opened it and who recorded each outcome.
 - **Audit log** (pharmacists, **Audit log** in the menu). Filter by person, kind of event (checks, holds, *overrides only*, sign-ins, ledger, staff/data/backups), date range and free text; see a readable line plus the raw detail for every entry; and export exactly what is filtered as CSV. Each export is itself recorded in the trail. CSV cells that a spreadsheet would run as a formula (`=`, `+`, `-`, `@`) are neutralised. Without JavaScript the page still lists the latest entries and offers the full CSV.
@@ -443,7 +451,7 @@ Tested with four signed-in counters checking at the same time: every check was d
 
 The counter app is designed to run inside a pharmacy's own network. A **public** deployment is a demonstration only. Every page carries a banner saying not to upload real prescriptions or patient data, and demo mode is on by default in the image.
 
-**No sign-in for visitors.** In demo mode (`RXCHECK_DEMO=1`) anyone who opens the link lands on the counter, signed in as **Demo visitor** (a pharmacist account whose PIN is random and never shown, so nobody can sign in as it). The counter page offers four one-click **sample slips** from `demo/`: a printed slip read by OCR (a recorded reading, see *Reading the slip*; AMBER), an edited copy (RED), the same slip re-sent on WhatsApp (GREEN) and a new slip with a high-risk medicine (AMBER). On start the app records `demo/reference.jpg` as an already-dispensed slip, so those verdicts come out as labelled. The samples are synthetic (`tests/make_demo_samples.py`); `tests/test_deploy.py` regenerates them and fails if any image in `demo/` differs, so a real photo cannot ship as a sample. Outside demo mode nothing changes: every user signs in with a PIN.
+**No sign-in for visitors.** In demo mode (`RXCHECK_DEMO=1`) anyone who opens the link lands on the counter, signed in as **Demo visitor** (a pharmacist account whose PIN is random and never shown, so nobody can sign in as it). The counter page offers four one-click **sample slips** from `demo/`: a printed slip read by OCR (a recorded reading, see *Reading the slip*; AMBER), an edited copy (RED), the same slip re-sent on WhatsApp (GREEN) and a new slip with a high-risk medicine (AMBER). On start the app records `demo/reference.jpg` as an already-dispensed slip, so those verdicts come out as labelled. The samples are synthetic (`tests/build_demo_samples.py`); `tests/test_deployment.py` regenerates them and fails if any image in `demo/` differs, so a real photo cannot ship as a sample. Outside demo mode nothing changes: every user signs in with a PIN.
 
 | File | What it does |
 |---|---|
@@ -469,7 +477,7 @@ Limits of a public demo: scheduled backups go to the same disk, so copy them off
 - **`rxcheck backup <folder> [--keep N]`** takes a consistent online snapshot of the database, images and features, then verifies the copy. With `serve --backup-dir` this runs every 4 hours, and the counter screen shows the last verified backup or a warning.
 - **`rxcheck verify [folder] [--against backup]`** checks the live ledger or a backup. It covers database integrity, audit protection triggers present, no gaps in the audit sequence, an intact hash chain (and, with `--against`, one that still contains that backup's trail), every entry has its audit record and feature file, and every ledger image is unchanged since it was recorded.
 - **`rxcheck restore <backup>`** verifies the backup first and refuses a damaged one (unless `--force`). It moves the current files aside (never deletes them), restores, re-verifies, and logs the restore.
-- Tested in `tests/test_storage.py`: two concurrent writers; a writer **killed mid-write** (every entry still had its audit record); audit tamper attempts; rollback of a failed write; detection of a changed or missing image and of removed audit protection; a **damaged database file restored from backup**; refusal of a damaged backup; JSON migration.
+- Tested in `tests/test_database_and_backups.py`: two concurrent writers; a writer **killed mid-write** (every entry still had its audit record); audit tamper attempts; rollback of a failed write; detection of a changed or missing image and of removed audit protection; a **damaged database file restored from backup**; refusal of a damaged backup; JSON migration.
 
 ## Data files: registry, drug-risk list, policy
 
@@ -539,9 +547,9 @@ python app/rxcheck.py verify [--against D:/offsite/rxcheck-backup-example]   # p
 python app/rxcheck.py restore D:/rxcheck-backups/rxcheck-backup-example
 
 # tests and evaluation
-cd tests && for t in test_robustness test_issuance test_data test_storage test_server test_counter_ux test_eval test_shared test_doctorping test_doctor_screens test_docs test_deploy test_ocr test_browser test_explain; do python $t.py || break; done
-python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk] [--complete-registry]
-python eval/ocr/build_ocr_set.py && python eval/ocr/score.py      # slip reading on 50 labelled synthetic slips
+cd tests && for t in test_image_checks test_signed_codes test_data_files test_database_and_backups test_counter_workflow test_counter_usability test_evaluation_rules test_shared_index test_doctor_confirmation test_doctor_confirmation_screens test_readme_tables test_deployment test_slip_reader test_browser_flow test_decision_screen; do python $t.py || break; done
+python eval/build_image_check_set.py && python eval/score_image_checks.py [--no-confirm-new-high-risk] [--complete-registry]
+python eval/build_slip_reader_set.py && python eval/score_slip_reader.py      # slip reading on 50 labelled synthetic slips
 ```
 
 ## Threat scenarios: status
@@ -559,7 +567,7 @@ python eval/ocr/build_ocr_set.py && python eval/ocr/score.py      # slip reading
 
 ## Evaluation
 
-`eval/build_set.py` creates a reproducible dataset using synthetic test fixtures. `eval/evaluate.py` reports behavior on that generated dataset, but its results are not evidence of field accuracy. In a synthetic-only checkout, visual regression and server tests explicitly skip assertions that require local sample images. This repository contains no real or derived prescription images or evaluation records. A field validation requires independently consented data collected under the protocol in [docs/field-validation.md](docs/field-validation.md); that data must remain private and is not included here.
+`eval/build_image_check_set.py` creates a reproducible dataset using synthetic test fixtures. `eval/score_image_checks.py` reports behavior on that generated dataset, but its results are not evidence of field accuracy. In a synthetic-only checkout, visual regression and server tests explicitly skip assertions that require local sample images. This repository contains no real or derived prescription images or evaluation records. A field validation requires independently consented data collected under the protocol in [docs/field-validation-protocol.md](docs/field-validation-protocol.md); that data must remain private and is not included here.
 
 ## Readiness: would it work at a counter today?
 
@@ -591,7 +599,7 @@ python eval/ocr/build_ocr_set.py && python eval/ocr/score.py      # slip reading
 
 ## Limitations
 
-- The public tests use synthetic fixtures only; real-world performance is unknown until the [field validation](docs/field-validation.md) is done.
+- The public tests use synthetic fixtures only; real-world performance is unknown until the [field validation](docs/field-validation-protocol.md) is done.
 - Without a clinic-signed code, it can't establish that a doctor authorised a prescription. Only issuance confirmation can.
 - "Clinic confirmed" is recorded on the pharmacist's word, under their name, unless the doctor answered a ping: then it is recorded as authenticated (see Doctor confirmation). That needs the doctor to have enrolled, through a service that is simulated here. Where there is no receipt, the per-person override and confirmation records are the safeguard.
 - Prescriber data needs an official registry integration (ABDM HPR, NMC or state councils) that does not exist yet. Override alerts across pharmacies need a party outside the pharmacy to receive them.
@@ -609,30 +617,35 @@ python eval/ocr/build_ocr_set.py && python eval/ocr/score.py      # slip reading
 | Path | Contents |
 |---|---|
 | `app/rxcheck.py` | Engine and CLI: `check`, `add`, `watch`, `serve`, `staff`, `holds`, `resolve`, `stats`, `data`, `clinic`, `log`, `backup`, `verify`, `restore` |
-| `app/doctorping.py` | Doctor confirmation: simulated service, enrolment, ping, one-time code, signed receipts |
-| `app/sharedindex.py` | Shared index: keyed signatures, simulated hub, peer verification, `sync` |
+| `app/doctor_confirmation.py` | Doctor confirmation: simulated service, enrolment, ping, one-time code, signed receipts |
+| `app/shared_index.py` | Shared index: keyed signatures, simulated hub, peer verification, `sync` |
 | `app/counter_app.py` | Counter app (browser UI, sign-in, several counters, scheduled backups, lookups, audit log, photo reading report) |
-| `app/ocr.py` | Slip reading: offline OCR, line parsing, what is filled in and what needs a tick, pilot figures |
-| `app/pdfpages.py` | PDF prescriptions: page images and text layer |
+| `app/slip_reader.py` | Slip reading: offline OCR, line parsing, what is filled in and what needs a tick, pilot figures |
+| `app/pdf_pages.py` | PDF prescriptions: page images and text layer |
 | `web/` → `static/` | Vue 3 sources (Vite) for the counter app's shortcuts, display controls, lookups and audit log; `static/` is the committed build |
-| `tests/scenarios.py` | Synthetic test images and transformations for counter conditions |
-| `tests/test_robustness.py` | Scenario tests A–F, quality gate, index, decision matrix, a step for every warning, split sale, speed |
-| `tests/test_issuance.py` | Signed codes: tampering, foreign keys, untrusted keys, QR survival, verdicts |
-| `tests/test_data.py` | Broken/missing data files, registry coverage and extract age, name matching (what counts as a contradiction), drug tiers incl. NDPS fail-closed, audited imports, entry review |
-| `tests/test_storage.py` | Concurrent writers, killed writer, append-only and hash-chained audit (edits, a fully recomputed chain caught against a backup, first-start chaining), rollback, verify, backup/restore, migration |
-| `tests/test_server.py` | Counter app: sign-in, lockout, CSRF, roles, decision page, split sale, counter/override/retake flows, four counters at once |
-| `tests/test_counter_ux.py` | WCAG AAA contrast in all themes, bundle and CSP, display preferences, shortcut markup, lookups and their safeguards, last activity, audit log filters, paging, CSV export, patient retention |
-| `tests/test_eval.py` | Held-out leakage check, threshold lock, field-validation minimums |
-| `tests/test_doctor_screens.py` | Counter screens for doctor confirmation: roles, CSRF, ask / refresh / enter code, approval, denial, read-out code, rate limit, expiry, lockout, not enrolled, service down, history and audit log |
-| `tests/test_doctorping.py` | Doctor confirmation: enrolment from the register, the minimal ping, app-tap and read-out answers, forged and replayed answers, receipts (tampered, other prescription, other pharmacy, stale), denial blocks confirmation (also after 24 h and without the service config), policy, service down, end to end through the CLI |
-| `tests/test_shared.py` | Shared index: keyed signature distances, what the hub stores, clones caught at another pharmacy, stage-2 rejection, minimal disclosure, request authentication, hub-down policy, `sync` late match, scale |
-| `tests/test_ocr.py` | Slip reading: parsing, look-alikes, strengths, ticks, states, PDFs, the report and CSV, the demo's recorded reading |
-| `tests/test_browser.py` | The slip reader in a real browser (installed Edge or Chrome via Playwright): fill, crops, blocked, ticks, decision |
-| `tests/test_explain.py` | The decision screen's three areas: edited / re-sent / dim / rewritten / unusable / new slips, unverified vs invalid Regn No, changed strength or added drug against the record, look-alikes; nothing unverified shown as fact; hold owner, take, follow-up, overdue, closed; the audit record |
-| `tests/test_docs.py` | README decision table must equal `decide()`, and the step table `next_step()`; no conflicting tables elsewhere |
-| `tests/test_deploy.py` | What may enter the image, first start on an empty disk, admin bootstrap, proxy mode, demo banner, lockout |
-| `Dockerfile`, `docker-entrypoint.sh`, `.dockerignore`, `render.yaml`, `requirements.txt` | Container deployment (see "Public demo deployment") |
-| `eval/` | Set builders and evaluators (`eval/ocr/` for slip reading); generated manifests, images, and results are local-only |
-| `demo/` | The public demo's synthetic sample slips, the recorded reading, and the slip reader's scores |
+| `tests/synthetic_slips.py` | Synthetic test slips, the transformations of counter conditions, and synthetic PDFs (text layer, scanned, locked) |
+| `tests/build_demo_samples.py` | Writes the public demo's sample slips and the recorded reading of the printed one |
+| `tests/test_image_checks.py` | Scenario tests A–F, quality gate, index, decision matrix, a step for every warning, split sale, speed |
+| `tests/test_signed_codes.py` | Signed codes: tampering, foreign keys, untrusted keys, QR survival, verdicts |
+| `tests/test_data_files.py` | Broken/missing data files, registry coverage and extract age, name matching (what counts as a contradiction), drug tiers incl. NDPS fail-closed, audited imports, entry review |
+| `tests/test_database_and_backups.py` | Concurrent writers, killed writer, append-only and hash-chained audit (edits, a fully recomputed chain caught against a backup, first-start chaining), rollback, verify, backup/restore, migration |
+| `tests/test_counter_workflow.py` | Counter app: sign-in, lockout, CSRF, roles, decision page, split sale, counter/override/retake flows, four counters at once |
+| `tests/test_counter_usability.py` | WCAG AAA contrast in all themes, bundle and CSP, display preferences, shortcut markup, lookups and their safeguards, last activity, audit log filters, paging, CSV export, patient retention |
+| `tests/test_evaluation_rules.py` | Held-out leakage check, threshold lock, field-validation minimums |
+| `tests/test_doctor_confirmation_screens.py` | Counter screens for doctor confirmation: roles, CSRF, ask / refresh / enter code, approval, denial, read-out code, rate limit, expiry, lockout, not enrolled, service down, history and audit log |
+| `tests/test_doctor_confirmation.py` | Doctor confirmation: enrolment from the register, the minimal ping, app-tap and read-out answers, forged and replayed answers, receipts (tampered, other prescription, other pharmacy, stale), denial blocks confirmation (also after 24 h and without the service config), policy, service down, end to end through the CLI |
+| `tests/test_shared_index.py` | Shared index: keyed signature distances, what the hub stores, clones caught at another pharmacy, stage-2 rejection, minimal disclosure, request authentication, hub-down policy, `sync` late match, scale |
+| `tests/test_slip_reader.py` | Slip reading: parsing, look-alikes, strengths, ticks, states, PDFs, the report and CSV, the demo's recorded reading |
+| `tests/test_browser_flow.py` | The slip reader in a real browser (installed Edge or Chrome via Playwright): fill, crops, blocked, ticks, decision |
+| `tests/test_decision_screen.py` | The decision screen's three areas: edited / re-sent / dim / rewritten / unusable / new slips, unverified vs invalid Regn No, changed strength or added drug against the record, look-alikes; nothing unverified shown as fact; hold owner, take, follow-up, overdue, closed; the audit record |
+| `tests/test_readme_tables.py` | README decision table must equal `decide()`, and the step table `next_step()`; no conflicting tables elsewhere |
+| `tests/test_deployment.py` | What may enter the image, first start on an empty disk, admin bootstrap, proxy mode, demo banner, lockout |
+| `Dockerfile`, `docker-entrypoint.sh`, `.dockerignore`, `render.yaml`, `requirements.txt`, `requirements-ocr.txt` | Container deployment (see "Public demo deployment"); the OCR engine is optional |
+| `eval/build_image_check_set.py`, `eval/score_image_checks.py` | The image checks: build the labelled synthetic set, score it (held-out split, threshold lock) |
+| `eval/build_slip_reader_set.py`, `eval/score_slip_reader.py` | The slip reader: build the 50 labelled synthetic slips, score them (silent errors first) |
+| `eval/real_slip_labels_template.json` | How to label real, consented slips for scoring (they stay in the git-ignored `eval/field/`) |
+| `demo/` | The public demo's synthetic sample slips (`samples.json` with the recorded reading) and the slip reader's scores (`slip-reader-scores.json`) |
+| `docs/` | `technical-overview.md`, `field-validation-protocol.md`, `usability-test-protocol.md`, `refill-tracking-design.md` |
+| `landing-page/` | Static landing page for the project |
 | `data/` | Empty prescriber registry, illustrative drug-risk list, policy switches |
-| `ledger/`, `inbox/`, `reports/`, `samples/` | Local runtime or private dataset directories; excluded from Git |
+| `ledger/`, `backups/`, `inbox/`, `reports/`, `samples/` | Local runtime or private dataset directories; excluded from Git |

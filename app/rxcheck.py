@@ -1179,8 +1179,8 @@ def _shared_publish(eid, kind, fp, when):
     """Offer a freshly recorded slip to the shared index (a no-op unless this pharmacy joined a network).
     Never lets a network problem break recording: an unpublished entry is picked up by `rxcheck shared sync`."""
     try:
-        import sharedindex
-        sharedindex.publish(eid, kind, fp, when)
+        import shared_index
+        shared_index.publish(eid, kind, fp, when)
     except Exception as ex:   # noqa: BLE001 - recording a slip must not fail because of the network layer
         print(f"shared index: could not publish {eid}: {ex}", file=sys.stderr)
 
@@ -1611,8 +1611,8 @@ def item_verdicts(drugs, flags, pol, recorded=None, signed=None, shared=None):
         risk = drug_risk(item)[0] or "routine"
         own = bool((recorded and drug_diff(item, recorded)) or (signed and drug_diff(item, signed)))
         if shared:
-            import sharedindex
-            own = own or sharedindex.item_changed(shared, item)
+            import shared_index
+            own = own or shared_index.item_changed(shared, item)
         f = dict(flags, mismatch=flags.get("doc_mismatch", False) or own, drug_mismatch=own)
         out.append({"item": item, "risk": risk, "verdict": decide(f, risk, pol), "drug_mismatch": own})
     return out
@@ -1748,8 +1748,8 @@ def run_check(image, drugs=None, regn=None, doctor=None, rx_date=None, window_da
             flags["new_slip"] = True
             notes.append(f"Not seen before in {len(entries)} recorded slip(s)")
             # not known here: has another pharmacy seen it? (no-op unless this pharmacy joined a network)
-            import sharedindex
-            shared = sharedindex.lookup(fs, dens, drugs, window_days)
+            import shared_index
+            shared = shared_index.lookup(fs, dens, drugs, window_days)
             if shared["status"] == "match":
                 flags["new_slip"], flags["repeat"], flags["shared"] = False, True, True
                 who = "dispensed" if shared["kind"] == "dispensed" else "checked"
@@ -1855,12 +1855,12 @@ def run_check(image, drugs=None, regn=None, doctor=None, rx_date=None, window_da
                             {"recorded": recorded, "signed_drugs": signed, "shared": shared_hit}, pol)
 
     callback = trusted(rec, "phone")
-    import sharedindex
+    import shared_index
     rep = {"image": str(image), "checked_at": now(), "seconds": round(time.perf_counter() - t0, 2),
            "risk": risk, "verdicts": verdicts, "findings": findings, "notes": notes, "match": match,
            "sha256": sha, "callback": callback, "unusable": flags["unusable"], "flags": flags,
            "issuance": issuance, "prescriber_message": msg if status != "invalid" else None,
-           "shared": sharedindex.public_result(shared), "items": items, "hand_over": [i["item"] for i in items if i["verdict"] == "GREEN"],
+           "shared": shared_index.public_result(shared), "items": items, "hand_over": [i["item"] for i in items if i["verdict"] == "GREEN"],
            "held": [i["item"] for i in held], "path": path, "steps": steps, "recorded": recorded,
            "fail_closed": fail_closed(", ".join(i["item"] for i in held)) if items else [],
            "data": {k: v["sha"] for k, v in data.items()}, "actor": actor()}
@@ -1914,8 +1914,8 @@ def record_check(rep, drugs=None, regn=None, doctor=None, context=None):
     if not rep["unusable"]:
         eid = record_seen(rep["image"], rep["_features"], rep["_dens"], rep["sha256"], drugs, regn, doctor, worst)
         if (rep.get("shared") or {}).get("status") == "unreachable":
-            import sharedindex
-            sharedindex.mark_unchecked(eid)   # asked while the network was down: `shared sync` asks again
+            import shared_index
+            shared_index.mark_unchecked(eid)   # asked while the network was down: `shared sync` asks again
     con = db()
     with con:
         iss = rep.get("issuance") or {}
@@ -2020,8 +2020,8 @@ def resolve_hold(hid, outcome, note="", reason=None):
     and needs a note."""
     con = db()
     status, advice = RESOLUTIONS[outcome]
-    import doctorping   # the prescriber's signed answer, if this hold was put to the doctor
-    said = doctorping.hold_decision(hid)
+    import doctor_confirmation   # the prescriber's signed answer, if this hold was put to the doctor
+    said = doctor_confirmation.hold_decision(hid)
     if said and said["decision"] == "denied" and outcome in ("confirmed", "dispensed-after-review"):
         raise ValueError(f"the prescriber DENIED issuing this prescription (request {said['request_id']}, "
                          f"{said['via']}): record 'refused'. A denial is not overridden on anyone's word")
@@ -2597,8 +2597,8 @@ def cmd_watch(a):
 
 
 def cmd_shared(a):
-    """Shared (cross-pharmacy) index: see sharedindex.py and the README section 'Shared index'."""
-    import sharedindex as sx
+    """Shared (cross-pharmacy) index: see shared_index.py and the README section 'Shared index'."""
+    import shared_index as sx
     if a.action == "hub-init":
         if not a.target:
             sys.exit("hub-init needs a folder for the hub")
@@ -2623,8 +2623,8 @@ def cmd_shared(a):
 
 
 def cmd_doctor(a):
-    """Authenticated doctor confirmation: see doctorping.py and README 'Doctor confirmation'."""
-    import doctorping as dp
+    """Authenticated doctor confirmation: see doctor_confirmation.py and README 'Doctor confirmation'."""
+    import doctor_confirmation as dp
     try:
         svc = dp.Service(a.service) if a.service else None
         if a.action == "service-init":

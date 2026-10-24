@@ -1,7 +1,7 @@
 """Counter app: the 'Ask the doctor' and 'enter the code' screens on a hold, with roles, CSRF, every answer path
 (app tap, read-out code, denial), expiry, lockout, rate limit, service down, and what the audit trail shows.
 
-Run:  python tests/test_doctor_screens.py
+Run:  python tests/test_doctor_confirmation_screens.py
 """
 import html
 import http.client
@@ -18,12 +18,12 @@ from urllib.parse import urlencode
 
 import cv2
 
-from scenarios import r, load_samples, fixture_path, mirrored_body, flipped_body, other_slip
+from synthetic_slips import r, load_samples, fixture_path, mirrored_body, flipped_body, other_slip
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 import counter_app as app  # noqa: E402
-import doctorping as dp  # noqa: E402
+import doctor_confirmation as dp  # noqa: E402
 
 ok = True
 

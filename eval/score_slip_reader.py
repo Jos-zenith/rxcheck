@@ -1,4 +1,4 @@
-"""Score the slip reader on the labelled set (samples/ocr/, from build_ocr_set.py) and on real slips from the field
+"""Score the slip reader on the labelled set (samples/ocr/, from build_slip_reader_set.py) and on real slips from the field
 study (eval/field/ocr/labels.json, if present).
 
 The number that matters most is SILENT ERRORS: a value filled in wrong that would go through without a tick if
@@ -9,7 +9,7 @@ Each slip is read once and scored for two counters:
   new          - only the drug list is on file, no strength dispensed yet (a counter on its first day)
   established  - every medicine in the set has been dispensed before, at the strengths on the slips (weeks of use)
 
-Run:  python eval/ocr/score.py [--only printed,pdf-text]      (writes samples/ocr/results.json)
+Run:  python eval/score_slip_reader.py [--only printed,pdf-text]      (writes samples/ocr/results.json)
 Synthetic results describe the reader on synthetic slips; they are not evidence of accuracy at a real counter.
 """
 import json
@@ -21,10 +21,10 @@ import time
 from datetime import date
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
-import ocr  # noqa: E402
-import pdfpages  # noqa: E402
+import slip_reader as ocr  # noqa: E402
+import pdf_pages  # noqa: E402
 import rxcheck as r  # noqa: E402
 
 SET = ROOT / "samples" / "ocr"
@@ -39,7 +39,7 @@ def page_lines(path, tmp):
     """[[line, ...] per page] - the text layer for a PDF page that has one, otherwise OCR."""
     if path.suffix.lower() == ".pdf":
         out = []
-        for i, (jpg, lines) in enumerate(pdfpages.pages(path.read_bytes())):
+        for i, (jpg, lines) in enumerate(pdf_pages.pages(path.read_bytes())):
             if lines:
                 segs, src = [(tuple(x["box"]), x["text"], x["conf"]) for x in lines], "text"
             else:
@@ -89,7 +89,7 @@ def items():
 
 
 def main():
-    if "--summary" in sys.argv:   # rebuild demo/ocr-results.json from the last scoring run, without reading again
+    if "--summary" in sys.argv:   # rebuild demo/slip-reader-scores.json from the last scoring run, without reading again
         rows = json.loads((SET / "results.json").read_text(encoding="utf-8"))["rows"]
         report(rows)
         return write_summary(rows)
@@ -102,7 +102,7 @@ def main():
     listed = set(table["brands"]) | set(table["molecules"])
     todo = [(p, it) for p, it in items() if not only or it["kind"] in only]
     if not todo:
-        sys.exit("no slips: run python eval/ocr/build_ocr_set.py first")
+        sys.exit("no slips: run python eval/build_slip_reader_set.py first")
     everything, seen = set(listed), {}
     for _, it in todo:   # the established counter has dispensed every medicine in the set, at its strength
         for d in it["expect"].get("drugs", []):
@@ -144,7 +144,7 @@ LABELS = {"printed": "Printed", "lighting": "Poor lighting", "handwriting-font":
 
 
 def write_summary(rows):
-    """demo/ocr-results.json: the figures the public demo shows - counts only, no slip content. Synthetic slips
+    """demo/slip-reader-scores.json: the figures the public demo shows - counts only, no slip content. Synthetic slips
     only; a real-slip row is never put on the public page."""
     rows = [x for x in rows if x["synthetic"]]
     out = []
@@ -157,11 +157,11 @@ def write_summary(rows):
                     "silent": t["new"]["med_silent"] + t["new"]["hdr_silent"],
                     "silent_established": t["established"]["med_silent"] + t["established"]["hdr_silent"]})
     scored = json.loads((SET / "results.json").read_text(encoding="utf-8")).get("scored_on")
-    data = {"_note": "Written by eval/ocr/score.py. Synthetic slips only; not evidence of accuracy on real "
+    data = {"_note": "Written by eval/score_slip_reader.py. Synthetic slips only; not evidence of accuracy on real "
                      "prescriptions. 'Handwriting-style font' is typed text in a handwriting font, not handwriting.",
             "scored_on": scored, "rows": out}
-    (ROOT / "demo" / "ocr-results.json").write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
-    print("wrote demo/ocr-results.json")
+    (ROOT / "demo" / "slip-reader-scores.json").write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+    print("wrote demo/slip-reader-scores.json")
 
 
 def report(rows):
@@ -186,7 +186,7 @@ def report(rows):
     if any(x["kind"] == "handwriting-font" for x in rows):
         print("handwriting-font rows are typed handwriting-style fonts, not handwriting: not a handwriting score.")
     if not any(not x["synthetic"] for x in rows):
-        print("No real slips scored: add consented ones to eval/field/ocr/ (see eval/ocr/labels-template.json).")
+        print("No real slips scored: add consented ones to eval/field/ocr/ (see eval/real_slip_labels_template.json).")
 
 
 if __name__ == "__main__":

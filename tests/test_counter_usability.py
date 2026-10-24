@@ -1,7 +1,7 @@
 """Counter app ergonomics: colour contrast (WCAG AAA) in every theme, display preferences, keyboard shortcuts,
 lookup fields, who-did-what on the counter screens, and the audit log for compliance review.
 
-Run:  python tests/test_counter_ux.py
+Run:  python tests/test_counter_usability.py
 """
 import csv
 import http.client
@@ -18,7 +18,7 @@ from urllib.parse import urlencode, quote
 
 import cv2
 
-from scenarios import r, load_samples, fixture_path, whatsapp, mirrored_body
+from synthetic_slips import r, load_samples, fixture_path, whatsapp, mirrored_body
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))

@@ -3,7 +3,7 @@
 Every image is generated from a synthetic test image, so this set measures the pipeline's behaviour
 under counter conditions - it is not evidence of real-world accuracy.
 
-Run:  python eval/build_set.py
+Run:  python eval/build_image_check_set.py
 """
 import csv
 import json
@@ -14,7 +14,7 @@ import cv2
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
-from scenarios import (synthetic_samples, whatsapp, photocopy, dim_shop_light, side_shadow, angled_photo,  # noqa: E402
+from synthetic_slips import (synthetic_samples, whatsapp, photocopy, dim_shop_light, side_shadow, angled_photo,  # noqa: E402
                        shaky, cropped, forwarded, screenshot, screen_recapture, rewrite, op_chit, op_chit_redated,
                        mirrored_body, flipped_body, other_slip, THIRD_LINES, added_line, tamil_line, pasted_lower,
                        glary_screen)

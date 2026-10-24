@@ -86,7 +86,7 @@ When the slip shows several drugs, each line gets its own state, and the sale is
 
 ## Decision table changes
 
-New rows for the README "Finding" table (and `tests/test_docs.py`, which must map each to its flags). "Repeat"
+New rows for the README "Finding" table (and `tests/test_readme_tables.py`, which must map each to its flags). "Repeat"
 means the slip matched a recorded one, so the existing `repeat` flag is set and the new `balance` flag says more.
 
 | Finding | Routine medicine | H1 / X / abuse-prone |

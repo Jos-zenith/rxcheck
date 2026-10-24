@@ -1,4 +1,4 @@
-# Optional: read the slip photo to fill in the counter form (app/ocr.py). Runs on this PC, offline.
+# Optional: read the slip photo to fill in the counter form (app/slip_reader.py). Runs on this PC, offline.
 # Install in two steps - the engine itself without its dependencies, because it asks for opencv-python,
 # which would sit beside the headless OpenCV every detection threshold was tuned with:
 #   pip install -r requirements-ocr.txt

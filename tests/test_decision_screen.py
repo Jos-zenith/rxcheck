@@ -2,7 +2,7 @@
 checks, each with its finding, its evidence and what is NOT known - and nothing unverified is shown as fact.
 Holds say who owns them and what happens next; the audit trail keeps what was observed and what was sent.
 
-Run:  python tests/test_explain.py
+Run:  python tests/test_decision_screen.py
 """
 import http.client
 import json
@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 
 import cv2
 
-from scenarios import (r, load_samples, fixture_path, whatsapp, forwarded, dim_shop_light, added_line, rewrite,
+from synthetic_slips import (r, load_samples, fixture_path, whatsapp, forwarded, dim_shop_light, added_line, rewrite,
                        tiny, other_slip)
 
 ROOT = Path(__file__).resolve().parents[1]

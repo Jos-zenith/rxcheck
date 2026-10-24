@@ -1,7 +1,7 @@
 """Registry, drug-risk list and policy: broken or missing data makes a check more cautious - never crashes it,
 never relaxes it. Imports are validated, all-or-nothing, versioned and audited.
 
-Run:  python tests/test_data.py
+Run:  python tests/test_data_files.py
 """
 import json
 import sys
@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 import rxcheck as r  # noqa: E402
-from scenarios import fixture_path, whatsapp  # noqa: E402
+from synthetic_slips import fixture_path, whatsapp  # noqa: E402
 import cv2  # noqa: E402
 
 ok = True

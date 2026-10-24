@@ -1,13 +1,13 @@
 """Counter-scenario tests for rxcheck using generated fixtures and optional local samples.
 
-Run:  python tests/test_robustness.py
+Run:  python tests/test_image_checks.py
 """
 import sys
 import time
 
 import numpy as np
 
-from scenarios import (r, rng, PRIVATE_PAIR, load_samples, whatsapp, photocopy, dim_shop_light, side_shadow, angled_photo,
+from synthetic_slips import (r, rng, PRIVATE_PAIR, load_samples, whatsapp, photocopy, dim_shop_light, side_shadow, angled_photo,
                        shaky, cropped, forwarded, screenshot, screen_recapture, rewrite, op_chit, op_chit_redated,
                        mirrored_body, flipped_body, other_slip, added_line, tamil_line, pasted_lower,
                        tiny, heavy_blur, blown_glare, near_black, glary_screen)

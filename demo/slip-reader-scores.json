@@ -1,5 +1,5 @@
 {
- "_note": "Written by eval/ocr/score.py. Synthetic slips only; not evidence of accuracy on real prescriptions. 'Handwriting-style font' is typed text in a handwriting font, not handwriting.",
+ "_note": "Written by eval/score_slip_reader.py. Synthetic slips only; not evidence of accuracy on real prescriptions. 'Handwriting-style font' is typed text in a handwriting font, not handwriting.",
  "scored_on": "2026-10-24",
  "rows": [
   {

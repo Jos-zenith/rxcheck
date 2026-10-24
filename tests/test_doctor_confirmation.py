@@ -1,7 +1,7 @@
 """Authenticated doctor confirmation: enrolment from the council register, a minimal ping, app-tap and one-time-code
 answers, signed receipts bound to one prescription, and what a receipt changes in hold resolution.
 
-Run:  python tests/test_doctorping.py
+Run:  python tests/test_doctor_confirmation.py
 """
 import inspect
 import json
@@ -18,10 +18,10 @@ from pathlib import Path
 
 import cv2
 
-from scenarios import ROOT, r, load_samples, other_slip
+from synthetic_slips import ROOT, r, load_samples, other_slip
 
 sys.path.insert(0, str(ROOT / "app"))
-import doctorping as dp  # noqa: E402
+import doctor_confirmation as dp  # noqa: E402
 
 ok = True
 

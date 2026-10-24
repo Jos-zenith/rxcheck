@@ -1,5 +1,11 @@
 # Rxcheck technical overview
 
+**Why triage, not verdicts.** A prescription image can be new, reused, altered, blurry, or forwarded through a
+messaging app. Pixels alone cannot prove who issued it. A detector that labels a document "authentic" overstates
+what software can know; one that calls every unusual image fraudulent creates harmful false alarms. So rxcheck
+answers a narrower question: **does this need a human check before dispensing?** - and it says what it does not
+know.
+
 Rxcheck is a research prototype for prescription-image triage at a pharmacy counter. It is not a
 certificate of authenticity, a clinical decision system, or a substitute for contacting the prescriber.
 The public repository contains no real or derived prescription images, patient records, or pharmacy
@@ -23,7 +29,7 @@ AI-generated:
    evidence only and never establishes authorship.
 
 The decision table in [README.md](../README.md#verification-states) is the policy source of truth.
-`tests/test_docs.py` checks it against the decision functions in `app/rxcheck.py`.
+`tests/test_readme_tables.py` checks it against the decision functions in `app/rxcheck.py`.
 
 ## Evidence and limits
 
@@ -31,7 +37,7 @@ The tests use generated synthetic images and exercise transforms such as recompr
 and simulated edits. Those tests verify expected software behavior on those fixtures only. They do not
 establish accuracy on real prescriptions, across prescribers, phones, languages, or pharmacies.
 
-The field-validation protocol in [docs/field-validation.md](field-validation.md) defines the
+The field-validation protocol in [docs/field-validation-protocol.md](field-validation-protocol.md) defines the
 independent dataset, consent, ground-truth, and shadow-pilot work needed before considering operational
 use. Real or derived data is intentionally kept out of this repository.
 

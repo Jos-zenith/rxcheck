@@ -1,7 +1,7 @@
 """Shared (cross-pharmacy) index: a slip dispensed at pharmacy B is recognised at pharmacy A, and nothing readable
 leaves either pharmacy. Two pharmacies are two separate RXCHECK_HOME folders; B always acts in its own process.
 
-Run:  python tests/test_shared.py
+Run:  python tests/test_shared_index.py
 """
 import json
 import os
@@ -17,11 +17,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from scenarios import (ROOT, r, load_samples, whatsapp, forwarded, photocopy, screen_recapture, added_line,
+from synthetic_slips import (ROOT, r, load_samples, whatsapp, forwarded, photocopy, screen_recapture, added_line,
                        flipped_body, other_slip, cropped, dim_shop_light, shaky)
 
 sys.path.insert(0, str(ROOT / "app"))
-import sharedindex as sx  # noqa: E402
+import shared_index as sx  # noqa: E402
 
 ok = True
 

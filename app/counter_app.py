@@ -30,14 +30,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, quote
 
-import doctorping as dp
-import ocr
-import pdfpages
+import doctor_confirmation as dp
+import slip_reader as ocr
+import pdf_pages
 import rxcheck as r
 
 MAX_UPLOAD = 15 * 1024 * 1024
 DEMO_USER = "Demo visitor"                # public demo only: everyone who opens the link is signed in as this
-DEMO_DIR = Path(__file__).resolve().parent.parent / "demo"   # synthetic sample slips (tests/make_demo_samples.py)
+DEMO_DIR = Path(__file__).resolve().parent.parent / "demo"   # synthetic sample slips (tests/build_demo_samples.py)
 MAX_DEMO_SESSIONS = 500                   # a crawler cannot fill memory with demo sessions
 SESSION_IDLE = timedelta(minutes=30)      # shared counter PCs: re-enter the PIN after a break
 SESSION_MAX = timedelta(hours=10)         # one shift
@@ -128,15 +128,15 @@ def new_case(data, suffix, origin, read=True, recorded=None):
     OCR (the public deployment has no engine)."""
     if len(data) > MAX_UPLOAD:
         raise HttpError(413, "File is larger than 15 MB. Ask for a photo of the slip, or only its pages.")
-    pdf = suffix == ".pdf" or pdfpages.is_pdf(data)
+    pdf = suffix == ".pdf" or pdf_pages.is_pdf(data)
     if not pdf and suffix not in r.IMG_EXT:
         raise HttpError(400, "Send a photo (.jpg, .png or .webp) or a PDF")
     cid = f"{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"
     text = [None]
     if pdf:
         try:
-            pages = pdfpages.pages(data)
-        except pdfpages.PdfError as ex:
+            pages = pdf_pages.pages(data)
+        except pdf_pages.PdfError as ex:
             raise HttpError(400, str(ex))
         path = uploads() / f"{cid}.jpg"   # page 1 is the case image: the checks, the evidence, the ledger
         path.write_bytes(pages[0][0])
@@ -602,9 +602,9 @@ def reading_status():
 
 
 def ocr_results():
-    """demo/ocr-results.json (eval/ocr/score.py): the slip reader on the synthetic labelled set."""
+    """demo/slip-reader-scores.json (eval/score_slip_reader.py): the slip reader on the synthetic labelled set."""
     try:
-        data = json.loads((DEMO_DIR / "ocr-results.json").read_text(encoding="utf-8"))
+        data = json.loads((DEMO_DIR / "slip-reader-scores.json").read_text(encoding="utf-8"))
         return data if isinstance(data.get("rows"), list) and data["rows"] else None
     except (OSError, ValueError, AttributeError):
         return None
@@ -636,7 +636,7 @@ def demo_about():
             f'<li><b>Not here:</b> live OCR of your own photos (needs a PC: about 10 s a slip), real doctors, real '
             f'registry data, drug interaction or allergy checks.</li></ul>{results}'
             f'<h3>Run it with live slip reading</h3><pre><code>pip install -r requirements.txt -r requirements-ocr.txt\n'
-            f'pip install --no-deps rapidocr_onnxruntime==1.4.4\npython app/ocr.py slip.jpg     # one photo\n'
+            f'pip install --no-deps rapidocr_onnxruntime==1.4.4\npython app/slip_reader.py slip.jpg     # one photo\n'
             f'python app/rxcheck.py serve        # the counter</code></pre></section>')
 
 
@@ -1384,7 +1384,7 @@ def pct(a, b):
 
 def ocr_report_page(user, days):
     """Pilot figures for the photo reading: acceptance and correction per field and confidence band, from the
-    audit trail (counts only). This is what FILL_MIN / CONFIRM_ABOVE in app/ocr.py should be set from."""
+    audit trail (counts only). This is what FILL_MIN / CONFIRM_ABOVE in app/slip_reader.py should be set from."""
     rep = ocr.report([d for *_, d in ocr_rows(days)])
     few = 30
     rows = "".join(
@@ -1413,7 +1413,7 @@ def ocr_report_page(user, days):
 <h2>Acceptance by field and confidence</h2>{table}
 <p class="hint">Acceptance = filled-in values staff sent unchanged; correction = values they changed or removed. A
 low acceptance in a band means values there should not be filled in, or should need a tick (FILL_MIN and
-CONFIRM_ABOVE in app/ocr.py). Unclear readings that staff typed exactly as read suggest a band could be filled in.
+CONFIRM_ABOVE in app/slip_reader.py). Unclear readings that staff typed exactly as read suggest a band could be filled in.
 Small counts mean little.</p>
 <p><a href="/ocr-report.csv?days={days}" download>Download one row per reading as CSV</a></p></section>
 <p><a href="/audit">Audit log</a> · <a href="/" data-shortcut="next">Back to the counter</a></p>""", user)

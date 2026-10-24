@@ -1,6 +1,6 @@
 """Clinic-signed issuance codes: the independent path for new prescriptions that image matching cannot judge.
 
-Run:  python tests/test_issuance.py
+Run:  python tests/test_signed_codes.py
 """
 import json
 import os
@@ -12,7 +12,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from scenarios import (r, load_samples, whatsapp, forwarded, photocopy, angled_photo, dim_shop_light,
+from synthetic_slips import (r, load_samples, whatsapp, forwarded, photocopy, angled_photo, dim_shop_light,
                        screen_recapture, flipped_body, mirrored_body)
 
 ok = True

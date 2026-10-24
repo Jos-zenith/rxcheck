@@ -1,6 +1,6 @@
 """Storage safeguards: concurrent writers, append-only audit trail, JSON migration, backup.
 
-Run:  python tests/test_storage.py
+Run:  python tests/test_database_and_backups.py
 """
 import json
 import shutil
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from scenarios import fixture_path
+from synthetic_slips import fixture_path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))

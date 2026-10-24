@@ -2,7 +2,7 @@
 
 Status: ready to run; not run yet. It needs no real prescriptions: every case is synthetic. It answers one
 question the lab tests cannot: **do pharmacists, under queue pressure, make the right call quickly, and do held
-cases get followed up?** Field accuracy on real slips is a separate study ([field-validation.md](field-validation.md)).
+cases get followed up?** Field accuracy on real slips is a separate study ([field-validation-protocol.md](field-validation-protocol.md)).
 
 ## Who and where
 
@@ -19,15 +19,15 @@ cases get followed up?** Field accuracy on real slips is a separate study ([fiel
 
 | # | Kind | Built from | Right outcome |
 |---|---|---|---|
-| 4 | Printed slip, routine medicines, clean | `eval/ocr/build_ocr_set.py` printed slips | Dispense; nothing held |
-| 3 | Same slip re-sent (WhatsApp, forwarded) | `tests/scenarios.py` whatsapp / forwarded of a recorded slip | Routine: dispense; high-risk: hold for the register check |
-| 3 | Edited copy of a recorded slip (drug line added, strength raised) | `tests/scenarios.py` added_line, a raised strength entered | Hold; do not dispense until the clinic confirms |
+| 4 | Printed slip, routine medicines, clean | `eval/build_slip_reader_set.py` printed slips | Dispense; nothing held |
+| 3 | Same slip re-sent (WhatsApp, forwarded) | `tests/synthetic_slips.py` whatsapp / forwarded of a recorded slip | Routine: dispense; high-risk: hold for the register check |
+| 3 | Edited copy of a recorded slip (drug line added, strength raised) | `tests/synthetic_slips.py` added_line, a raised strength entered | Hold; do not dispense until the clinic confirms |
 | 3 | New slip with a high-risk medicine | `other_slip`, an Alprax / Lyrica line | Hold; call the clinic on the registry number |
 | 2 | Look-alike or unlisted controlled name ("Panazep", "Alprex") | typed or printed | Held as high-risk; confirm what it is |
 | 2 | Unreadable photo (glare, thumbnail) | `blown_glare`, `tiny` | Ask for a retake; nothing decided on the image |
 | 2 | Doctor's genuine rewrite of a recorded slip | `rewrite` | Confirm with the clinic; not treated as fraud |
-| 2 | Smudged line the reader cannot read | `tests/scenarios.py` printed_slip | Type it from the slip; tick the readings |
-| 2 | PDF, 2 pages | `eval/ocr/build_ocr_set.py` PDFs | As for the medicines on it |
+| 2 | Smudged line the reader cannot read | `tests/synthetic_slips.py` printed_slip | Type it from the slip; tick the readings |
+| 2 | PDF, 2 pages | `eval/build_slip_reader_set.py` PDFs | As for the medicines on it |
 | 1 | Clinic does not answer the call | a held case, the "clinic" never picks up | Record "No answer"; the hold waits and is followed up |
 
 The registry is filled with the synthetic doctors used in the cases, so "not in the registry" appears only where
@@ -55,5 +55,5 @@ pressure, or the rule itself.
 
 - A short report per measure, with every miss and every unnecessary hold listed and its cause.
 - Changes to wording or layout are re-tested with at least 2 new participants before the shadow pilot.
-- Thresholds in `app/ocr.py` (FILL_MIN, CONFIRM_ABOVE) are **not** set from this study: synthetic slips do not
+- Thresholds in `app/slip_reader.py` (FILL_MIN, CONFIRM_ABOVE) are **not** set from this study: synthetic slips do not
   say how real handwriting reads. They are set from the shadow pilot's photo reading report.

@@ -1,6 +1,6 @@
 """Counter app: sign-in, roles, CSRF, the decision page, and several billing counters at once.
 
-Run:  python tests/test_server.py
+Run:  python tests/test_counter_workflow.py
 """
 import http.client
 import json
@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 
 import cv2
 
-from scenarios import r, PRIVATE_PAIR, load_samples, fixture_path, whatsapp, forwarded, other_slip, angled_photo, glary_screen, mirrored_body, \
+from synthetic_slips import r, PRIVATE_PAIR, load_samples, fixture_path, whatsapp, forwarded, other_slip, angled_photo, glary_screen, mirrored_body, \
     flipped_body
 
 ROOT = Path(__file__).resolve().parents[1]

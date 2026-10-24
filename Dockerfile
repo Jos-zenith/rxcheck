@@ -22,12 +22,12 @@ RUN pip install --no-cache-dir -r requirements.txt \
  && groupadd --system --gid 10001 rxcheck \
  && useradd --system --uid 10001 --gid rxcheck --no-create-home --shell /usr/sbin/nologin rxcheck
 
-# app/ocr.py is imported by the counter app; the engine itself only with WITH_OCR=1 (above). Without it the
+# app/slip_reader.py is imported by the counter app; the engine itself only with WITH_OCR=1 (above). Without it the
 # public demo's Printed slip sample replays a recorded reading
-COPY app/rxcheck.py app/counter_app.py app/sharedindex.py app/doctorping.py app/ocr.py app/pdfpages.py ./app/
+COPY app/rxcheck.py app/counter_app.py app/shared_index.py app/doctor_confirmation.py app/slip_reader.py app/pdf_pages.py ./app/
 COPY docker-entrypoint.sh ./
 COPY data/*.json ./data/
-# synthetic sample slips for the public demo (regenerated and checked by tests/test_deploy.py)
+# synthetic sample slips for the public demo (regenerated and checked by tests/test_deployment.py)
 COPY demo/ ./demo/
 # the Vue bundle, built from web/ and committed: the image needs no Node
 COPY static/app.js static/app.css ./static/

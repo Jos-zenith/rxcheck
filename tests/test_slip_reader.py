@@ -1,7 +1,7 @@
 """Reading the slip (OCR) as a typing aid: what is filled in, what must be ticked, what is only shown, and that
 no misread can reach a decision unseen.
 
-Run:  python tests/test_ocr.py
+Run:  python tests/test_slip_reader.py
 The parsing and counter-flow checks need no OCR engine (a stand-in returns fixed readings). The last section
 reads a printed synthetic slip with the real engine when it is installed, and is skipped otherwise.
 """
@@ -20,13 +20,13 @@ from urllib.parse import urlencode
 
 import cv2
 
-from scenarios import r, other_slip
-import make_pdf
+from synthetic_slips import r, other_slip
+import synthetic_slips as pdfs
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 import counter_app as app  # noqa: E402
-import ocr  # noqa: E402
+import slip_reader as ocr  # noqa: E402
 
 ok = True
 
@@ -326,7 +326,7 @@ with tempfile.TemporaryDirectory() as t:
 
     # PDFs: a text layer is read without the engine; scanned pages go through OCR; bad files are refused clearly
     n = calls["n"]
-    pdf = make_pdf.text_pdf([[(60, 60, 20, "SYNTHETIC TEST CLINIC"), (60, 100, 12, "Dr. Asha Example, MBBS"),
+    pdf = pdfs.text_pdf([[(60, 60, 20, "SYNTHETIC TEST CLINIC"), (60, 100, 12, "Dr. Asha Example, MBBS"),
                               (60, 118, 12, "Regn No: TN-45821"), (400, 140, 12, f"Date: {day}")],
                              [(60, 80, 12, "1. Tab. Dolo 650 mg 1-0-1"), (60, 110, 12, "2. Tab. Alprax 0.25 mg 0-0-1")]])
     st, loc, *_ = ph.upload(pdf, "rx.pdf", "application/pdf")
@@ -349,12 +349,12 @@ with tempfile.TemporaryDirectory() as t:
     check("  the PDF case goes through the check like a photo", st == 303)
     from PIL import Image
     pages = [Image.fromarray(cv2.cvtColor(other_slip(seed=s), cv2.COLOR_BGR2RGB)) for s in (8, 9)]
-    st, loc, *_ = ph.upload(make_pdf.image_pdf(pages), "scan.pdf", "application/pdf")
+    st, loc, *_ = ph.upload(pdfs.image_pdf(pages), "scan.pdf", "application/pdf")
     st, _, data = wait_read(ph, loc.split("/")[-1])
     check("scanned 2-page PDF (no text layer): each page read by OCR", data.get("status") == "done"
           and calls["n"] == n + 2, (calls["n"] - n, data.get("status")))
-    for bad, why in ((make_pdf.locked_pdf(), "password-protected"), (b"%PDF-1.4 not really", "cannot be opened"),
-                     (make_pdf.text_pdf([[(60, 60, 12, "page")]] * 7), "at most 6")):
+    for bad, why in ((pdfs.locked_pdf(), "password-protected"), (b"%PDF-1.4 not really", "cannot be opened"),
+                     (pdfs.text_pdf([[(60, 60, 12, "page")]] * 7), "at most 6")):
         if bad is None:
             print("[SKIP] password-protected PDF: pypdf not installed")
             continue
@@ -441,7 +441,7 @@ if have_engine:
     demo = json.loads((ROOT / "demo" / "samples.json").read_text(encoding="utf-8"))
     rec = next(s for s in demo["samples"] if s["key"] == "printed")["reading"]["segments"]
     fresh = ocr.read_segments(ocr.load(ROOT / "demo" / "printed.jpg"))
-    check("the demo's recorded reading is what the engine reads from demo/printed.jpg (else: make_demo_samples.py)",
+    check("the demo's recorded reading is what the engine reads from demo/printed.jpg (else: build_demo_samples.py)",
           [x["text"] for x in rec] == [t for _, t, _ in fresh]
           and all(abs(x["conf"] - c) < 0.01 for x, (_, _, c) in zip(rec, fresh)))
 

@@ -1,7 +1,7 @@
 """Cloud deployment: what may enter the container image, first start on an empty disk, the first pharmacist
 account, and the counter app behind a cloud host's HTTPS proxy.
 
-Run:  python tests/test_deploy.py
+Run:  python tests/test_deployment.py
 """
 import fnmatch
 import http.client
@@ -48,20 +48,20 @@ files = sorted(set(tracked) | {p.relative_to(ROOT).as_posix() for p in ROOT.rglo
                                and ".git" not in p.parts})
 inside = [f for f in files if docker_included(f, patterns)]
 check(f"image build context is code + default data only ({', '.join(inside)})",
-      set(inside) == {"requirements.txt", "requirements-ocr.txt", "app/rxcheck.py", "app/counter_app.py", "app/sharedindex.py", "app/doctorping.py",
-                      "app/ocr.py", "app/pdfpages.py",
+      set(inside) == {"requirements.txt", "requirements-ocr.txt", "app/rxcheck.py", "app/counter_app.py", "app/shared_index.py", "app/doctor_confirmation.py",
+                      "app/slip_reader.py", "app/pdf_pages.py",
                       "docker-entrypoint.sh",
                       "data/drug_risk.json", "data/policy.json", "data/registry.json",
                       "static/app.js", "static/app.css",
                       "demo/samples.json", "demo/reference.jpg", "demo/edited.jpg", "demo/resent.jpg", "demo/new.jpg",
-                      "demo/printed.jpg", "demo/ocr-results.json"})
+                      "demo/printed.jpg", "demo/slip-reader-scores.json"})
 check("no image, ledger, report or key file can enter the image (only the synthetic demo slips)",
       not [f for f in inside if f.split("/")[0] in ("samples", "ledger", "inbox", "reports", "eval")
            or (f.endswith((".jpg", ".png")) and not f.startswith("demo/")) or f.endswith((".db", ".pem"))])
 # every image in demo/ must be what the synthetic generator makes - a real photo can never ship as a "sample"
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
-from scenarios import demo_slips  # noqa: E402
+from synthetic_slips import demo_slips  # noqa: E402
 made = demo_slips()
 shipped = sorted(p.name for p in (ROOT / "demo").glob("*") if p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp"))
 diffs = {}
@@ -70,7 +70,7 @@ for name in shipped:
     ref = made.get(Path(name).stem)
     diffs[name] = None if ref is None or img is None or img.shape != ref.shape else \
         float(np.abs(img.astype(np.int16) - ref.astype(np.int16)).mean())
-check("demo/ images are exactly the synthetic generator's output (tests/make_demo_samples.py)",
+check("demo/ images are exactly the synthetic generator's output (tests/build_demo_samples.py)",
       shipped == sorted(f"{k}.jpg" for k in made) and all(d is not None and d < 2.0 for d in diffs.values()), str(diffs))
 dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 render = (ROOT / "render.yaml").read_text(encoding="utf-8")
@@ -183,7 +183,7 @@ with tempfile.TemporaryDirectory() as t:
           say is not None and not re.search(r"fraud|fake|forg|edit|copy|police", say.group(1), re.I),
           say.group(1) if say else "no line")
     # ---- the printed sample: the cloud has no OCR engine; the recorded reading is replayed through the live pipeline
-    import ocr
+    import slip_reader as ocr
     os.environ["RXCHECK_OCR"] = "on"
     real_available, ocr.available = ocr.available, (lambda: False)
     s, _, _, body = req2("GET", "/", headers=h)
@@ -192,7 +192,7 @@ with tempfile.TemporaryDirectory() as t:
           and "takes about two seconds." in body)
     check("  'What this demo includes' and the reader's scores on the synthetic set, with their caveat",
           "What this demo includes" in body and "How the slip reader scored" in body and "Silent errors" in body
-          and "not evidence of accuracy on real prescriptions" in body and "python app/ocr.py slip.jpg" in body)
+          and "not evidence of accuracy on real prescriptions" in body and "python app/slip_reader.py slip.jpg" in body)
     s, loc, _, _ = req2("POST", "/demo/try", urlencode({"key": "printed", "csrf": csrf}), h)
     pcid = loc.rsplit("/", 1)[-1]
     s, _, _, body = req2("GET", loc, headers=h)

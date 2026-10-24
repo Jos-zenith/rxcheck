@@ -4,7 +4,7 @@ The public tests use synthetic fixtures only. They show how the pipeline behaves
 they do not establish accuracy on real prescriptions. This document says what evidence would be needed
 before relying on the results, and how to collect it without fooling ourselves.
 
-`eval/evaluate.py` enforces the mechanical parts. It refuses a held-out set that shares a prescriber or pharmacy with the tuning set. It locks the thresholds the first time the held-out set is scored. Until the minimums below are met, it labels every report **"NOT A FIELD VALIDATION"**.
+`eval/score_image_checks.py` enforces the mechanical parts. It refuses a held-out set that shares a prescriber or pharmacy with the tuning set. It locks the thresholds the first time the held-out set is scored. Until the minimums below are met, it labels every report **"NOT A FIELD VALIDATION"**.
 
 ## 1. What to collect
 
@@ -38,7 +38,7 @@ Record for every case: phone model, how it arrived (WhatsApp / direct photo / sc
 1. Assign whole prescribers **and** whole pharmacies to `tune` or `holdout`. Put at least a third of the prescribers in `holdout`. Never split one prescriber's slips across both sides. The evaluator rejects a manifest that does.
 2. Tune thresholds on `tune` only.
 3. **Before** scoring `holdout`, write down the acceptance criteria (section 5), commit them, and commit the code.
-4. Run `python eval/evaluate.py --split holdout --manifest eval/field/manifest.csv --setup eval/field/setup.json` **once**. The first run writes the lock. Commit it.
+4. Run `python eval/score_image_checks.py --split holdout --manifest eval/field/manifest.csv --setup eval/field/setup.json` **once**. The first run writes the lock. Commit it.
 5. If a threshold changes afterwards, every later held-out result is reported as **CONTAMINATED**. To regain an independent estimate, collect a new held-out set.
 
 ## 5. Acceptance criteria (to be set before scoring the held-out set)

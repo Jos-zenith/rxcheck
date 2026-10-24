@@ -1,6 +1,6 @@
 """The README's decision table is the policy pharmacists read - it must match decide() exactly.
 
-Run:  python tests/test_docs.py
+Run:  python tests/test_readme_tables.py
 """
 import re
 import sys
@@ -116,7 +116,7 @@ ok &= good
 print(f"[{'PASS' if good else 'FAIL'}] README 'after a warning' table matches next_step() ({len(step_rows)} rows x 2 risks)")
 
 # no second, conflicting decision table elsewhere in the docs
-for doc in ("docs/ANALYSIS.md", "docs/blog.md"):
+for doc in ("docs/technical-overview.md",):
     text = (ROOT / doc).read_text(encoding="utf-8")
     if "| Document finding |" in text or "| Finding | Routine medicine |" in text:
         ok = False

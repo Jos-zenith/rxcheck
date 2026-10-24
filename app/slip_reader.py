@@ -24,7 +24,7 @@ Engine: RapidOCR (PP-OCR models on onnxruntime), optional. Without it the counte
 (--no-deps: it asks for opencv-python, which would sit beside the headless OpenCV the checks were tuned on.)
 Switch off with RXCHECK_OCR=off.
 
-Try it on one image:  python app/ocr.py slip.jpg
+Try it on one image:  python app/slip_reader.py slip.jpg
 """
 import os
 import re
@@ -266,7 +266,7 @@ def parse(lines, known, is_high=lambda text: False, today=None, strengths=None):
 
 def read_pages(pages, known, is_high=lambda text: False, today=None, strengths=None):
     """Read every page of one prescription: pages = [{'path', 'lines'?}], 'lines' being a PDF page's text layer
-    (pdfpages.text_lines), used instead of OCR. Returns {'status': 'done', 'ms', 'engine', 'pages', 'drugs',
+    (pdf_pages.text_lines), used instead of OCR. Returns {'status': 'done', 'ms', 'engine', 'pages', 'drugs',
     'unclear', 'crops', 'regn'?, ...} or {'status': 'failed', 'message'}. Never raises: a failed read only
     means staff type as before. A page that needs OCR while the engine is missing is listed in 'unread'."""
     t0 = time.time()
@@ -407,19 +407,19 @@ def report(details):
 if __name__ == "__main__":
     import json
     if len(sys.argv) != 2:
-        sys.exit("usage: python app/ocr.py IMAGE_OR_PDF")
+        sys.exit("usage: python app/slip_reader.py IMAGE_OR_PDF")
     if not enabled():
-        sys.exit("OCR is not available: install it (see the top of app/ocr.py) or unset RXCHECK_OCR=off")
+        sys.exit("OCR is not available: install it (see the top of app/slip_reader.py) or unset RXCHECK_OCR=off")
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import rxcheck as r
     table = r.drug_table() or r.EMPTY_TABLE
     path = sys.argv[1]
     if path.lower().endswith(".pdf"):
         import tempfile
-        import pdfpages
+        import pdf_pages
         tmp = tempfile.mkdtemp()
         pages = []
-        for i, (jpg, lines) in enumerate(pdfpages.pages(open(path, "rb").read())):
+        for i, (jpg, lines) in enumerate(pdf_pages.pages(open(path, "rb").read())):
             pages.append({"path": os.path.join(tmp, f"p{i + 1}.jpg"), "lines": lines})
             open(pages[-1]["path"], "wb").write(jpg)
     else:

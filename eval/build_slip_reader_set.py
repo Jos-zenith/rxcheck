@@ -9,9 +9,9 @@
 
 Everything is synthetic, says so on the slip, and uses made-up doctors and registration numbers. Real slips (the
 10 handwritten ones above all) come from the consented field study: put them in eval/field/ocr/ with a
-labels.json in the shape of eval/ocr/labels-template.json, and eval/ocr/score.py scores them as 'real'.
+labels.json in the shape of eval/real_slip_labels_template.json, and eval/score_slip_reader.py scores them as 'real'.
 
-Run:  python eval/ocr/build_ocr_set.py      then  python eval/ocr/score.py
+Run:  python eval/build_slip_reader_set.py      then  python eval/score_slip_reader.py
 """
 import json
 import random
@@ -23,10 +23,10 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "tests"), str(ROOT / "app")]
-from scenarios import dim_shop_light, side_shadow, blown_glare, angled_photo, forwarded  # noqa: E402
-import make_pdf  # noqa: E402
+from synthetic_slips import dim_shop_light, side_shadow, blown_glare, angled_photo, forwarded  # noqa: E402
+import synthetic_slips as pdfs  # noqa: E402
 
 OUT = ROOT / "samples" / "ocr"
 FONT_DIRS = [Path("C:/Windows/Fonts"), Path("/usr/share/fonts/truetype/dejavu"), Path("/Library/Fonts")]
@@ -161,20 +161,20 @@ def main():
                 pages[-1] = slip_like(pages[-1], labels, lab, lines)
         # page 3, when there is one, holds advice only: no medicine, no letterhead
         if text_layer:
-            data = make_pdf.text_pdf([ln for _, ln in pages[:2]]
+            data = pdfs.text_pdf([ln for _, ln in pages[:2]]
                                      + [[(60, 80, 12, "Advice: plenty of fluids, review in 5 days")]] * (n_pages - 2))
         else:
             advice = Image.new("RGB", (1240, 1754), (250, 250, 247))
             ImageDraw.Draw(advice).text((80, 120), "Advice: plenty of fluids, review in 5 days",
                                         font=font(printed[0], 30), fill=(20, 20, 20))
             scans = [Image.fromarray(cv2.cvtColor(camera(im, rng), cv2.COLOR_BGR2RGB)) for im, _ in pages[:2]]
-            data = make_pdf.image_pdf(scans + [advice] * (n_pages - 2))
+            data = pdfs.image_pdf(scans + [advice] * (n_pages - 2))
         name = f"pdf-{'text' if text_layer else 'scan'}-{i + 1:02d}"
         (OUT / f"{name}.pdf").write_bytes(data)
         items.append({"id": name, "file": f"{name}.pdf", "kind": "pdf-text" if text_layer else "pdf-scan",
                       "synthetic": True, "note": f"{n_pages} pages; medicines on pages 1 and 2", "expect": labels})
     (OUT / "manifest.json").write_text(json.dumps({"_note": "Synthetic slips for the slip reader; not real "
-                                                   "prescriptions. Built by eval/ocr/build_ocr_set.py.",
+                                                   "prescriptions. Built by eval/build_slip_reader_set.py.",
                                                    "built_on": today.isoformat(), "items": items}, indent=1),
                                        encoding="utf-8")
     counts = {}

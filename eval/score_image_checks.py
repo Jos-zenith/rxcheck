@@ -3,14 +3,14 @@
 Metrics follow the counter's decision, not an "AI or not" score:
   RED   = do not dispense until confirmed   AMBER = needs confirmation   GREEN = no issues found
 
-Safeguards against fooling ourselves (docs/field-validation.md):
+Safeguards against fooling ourselves (docs/field-validation-protocol.md):
   * results are broken down by origin (real / derived / synthetic) - derived and synthetic cases are not
     evidence of real-world accuracy, and the report says so;
   * a held-out split must not share a prescriber or pharmacy with the tuning split (checked);
   * the first held-out run locks the detection thresholds (eval/holdout_lock.json); any later change makes
     held-out results "contaminated", and the report says so.
 
-Run:  python eval/evaluate.py [--no-confirm-new-high-risk] [--complete-registry] [--split tune|holdout|all]
+Run:  python eval/score_image_checks.py [--no-confirm-new-high-risk] [--complete-registry] [--split tune|holdout|all]
                               [--manifest eval/field/manifest.csv --setup eval/field/setup.json]
 """
 import argparse
@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT / "app"))
 import rxcheck as r  # noqa: E402
 
 LOCK = ROOT / "eval" / "holdout_lock.json"
-# what a run must contain before its numbers may be called a field validation (docs/field-validation.md)
+# what a run must contain before its numbers may be called a field validation (docs/field-validation-protocol.md)
 FIELD_MIN = {"genuine_real": 300, "fraud_real": 60, "prescribers": 20, "pharmacies": 3}
 NOT_DETECTION = {"PIN_ITERATIONS", "REGISTRY_MAX_AGE_DAYS", "DRUG_LIST_MAX_AGE_DAYS", "OVERRIDE_ALERT"}
 

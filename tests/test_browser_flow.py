@@ -1,10 +1,10 @@
 """The slip reader in a real browser: photo upload -> background read -> fields filled by the page script ->
 crops shown -> ticks required -> decision. Also a PDF upload and the 'OCR disabled' state.
 
-Run:  python tests/test_browser.py
+Run:  python tests/test_browser_flow.py
 Needs Playwright (pip install playwright==1.64.1) and an installed Edge or Chrome - no browser download: it
 drives the one on the PC. Skipped, not failed, when neither is there. The OCR engine is a stand-in with fixed
-readings, so the test is about the page and the server, not about reading accuracy (eval/ocr/score.py).
+readings, so the test is about the page and the server, not about reading accuracy (eval/score_slip_reader.py).
 """
 import json
 import os
@@ -17,13 +17,13 @@ from pathlib import Path
 
 import cv2
 
-from scenarios import r, other_slip
-import make_pdf
+from synthetic_slips import r, other_slip
+import synthetic_slips as pdfs
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
 import counter_app as app  # noqa: E402
-import ocr  # noqa: E402
+import slip_reader as ocr  # noqa: E402
 
 try:
     from playwright.sync_api import sync_playwright, Error as PwError
@@ -151,7 +151,7 @@ with tempfile.TemporaryDirectory() as t, sync_playwright() as pw:
 
         # ---- a PDF: chosen like a photo, its text read without OCR
         pdf = tmp / "rx.pdf"
-        pdf.write_bytes(make_pdf.text_pdf([[(60, 60, 20, "SYNTHETIC TEST CLINIC"), (60, 118, 12, "Regn No: TN-45821")],
+        pdf.write_bytes(pdfs.text_pdf([[(60, 60, 20, "SYNTHETIC TEST CLINIC"), (60, 118, 12, "Regn No: TN-45821")],
                                            [(60, 80, 12, "1. Tab. Dolo 650 mg 1-0-1")]]))
         page.goto(f"{base}/")
         page.set_input_files("#image", str(pdf))
