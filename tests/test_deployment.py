@@ -161,7 +161,7 @@ with tempfile.TemporaryDirectory() as t:
     s, _, cookie, body = req2("GET", "/")
     tok = re.search(r"rxs=([^;]+)", cookie)
     check("opening the link signs the visitor in as 'Demo visitor' - no PIN, cookie Secure/HttpOnly/Strict",
-          s == 200 and tok is not None and "Demo visitor" in body and "Try it with a sample slip" in body
+          s == 200 and tok is not None and "Demo visitor" in body and "Try a sample slip" in body
           and all(x in cookie for x in ("Secure", "HttpOnly", "SameSite=Strict")), cookie)
     s, _, _, _ = req2("POST", "/login", urlencode({"name": app.DEMO_USER, "pin": "000000000000"}), form)
     check("nobody can sign in as 'Demo visitor' with a PIN", s == 401)
@@ -188,10 +188,10 @@ with tempfile.TemporaryDirectory() as t:
     real_available, ocr.available = ocr.available, (lambda: False)
     s, _, _, body = req2("GET", "/", headers=h)
     check("home page: 'Slip reading not installed', and says the Printed slip replays a recorded reading",
-          'data-ocr-status="missing"' in body and "Slip reading not installed" in body and "replays a reading" in body
-          and "takes about two seconds." in body)
-    check("  'What this demo includes' and the reader's scores on the synthetic set, with their caveat",
-          "What this demo includes" in body and "How the slip reader scored" in body and "Silent errors" in body
+          'data-ocr-status="missing"' in body and "Slip reading not installed" in body and "replays a reading" in body)
+    check("  'This demo': what it includes, the reader's scores on the synthetic set with their caveat, sample thumbnails",
+          "This demo" in body and "Scores by slip type" in body and "Silent errors" in body
+          and "silent errors" in body and '/demo/thumb/printed' in body
           and "not evidence of accuracy on real prescriptions" in body and "python app/slip_reader.py slip.jpg" in body)
     s, loc, _, _ = req2("POST", "/demo/try", urlencode({"key": "printed", "csrf": csrf}), h)
     pcid = loc.rsplit("/", 1)[-1]

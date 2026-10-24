@@ -14,28 +14,32 @@ function fill(input, value) {
   }
 }
 
+// a chip on the field's label says where its value came from - the field itself tells the story
+function markLabel(input, ticks) {
+  const label = document.querySelector(`label[for="${input.id}"]`)
+  if (!label || label.querySelector('.chip')) return
+  const c = document.createElement('span')
+  const check = ticks.includes(input.id)
+  c.className = check ? 'chip warn' : 'chip src'
+  c.textContent = check ? 'check' : 'from slip'
+  label.append(' ', c)
+}
+
 function apply(box, data) {
+  const ticks = data.ticks || []
   const filled = []
   for (const [name, value] of Object.entries(data.values || {})) {
     const input = document.getElementById(name)
     if (!input || !value || input.value.trim()) continue
     fill(input, value)
-    filled.push(input.labels && input.labels[0] ? input.labels[0].textContent.trim() : name)
+    filled.push(input)
   }
   const tpl = document.createElement('template')
   tpl.innerHTML = data.panel || ''
   const panel = tpl.content.firstElementChild
-  if (panel) {
-    if (filled.length) {
-      const p = document.createElement('p')
-      p.className = 'hint'
-      p.textContent = `Filled in just now: ${filled.join('; ')}.`
-      panel.appendChild(p)
-    }
-    box.replaceWith(panel)
-  } else {
-    box.remove()
-  }
+  if (panel) box.replaceWith(panel)
+  else box.remove()
+  filled.forEach((input) => markLabel(document.getElementById(input.id) || input, ticks))
 }
 
 export function installOcrFill() {

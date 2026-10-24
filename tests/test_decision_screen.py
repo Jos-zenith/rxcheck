@@ -164,30 +164,30 @@ with tempfile.TemporaryDirectory() as t:
     s, _, home = st.req("GET", "/")
     check("upload: one action, 'Analyse prescription'; it says the analysis starts on choosing a file",
           "Analyse prescription" in home and "Check prescription</button>" not in home
-          and "starts as soon as you" in home and "data-upload-status" in home)
+          and "it starts by itself" in home and "data-upload-status" in home)
     s, loc, _ = st.upload(cv2.imencode(".jpg", other_slip(9))[1].tobytes())
     cid = loc.rsplit("/", 1)[1]
     s, loc, page = st.post(f"/case/{cid}/check", {"drugs": "Alprax 0.25", "regn": "00000", "doctor": "Dr. Example"})
     s, _, page = st.req("GET", f"/case/{cid}")
-    hid = re.search(r"Hold <b>(H-[\w-]+)</b>", page).group(1)
+    hid = re.search(r"<h2>Hold (H-[\w-]+)</h2>", page).group(1)
     check("decision page: 'What was checked' with three areas, ahead of the hold buttons",
           page.index("What was checked") < page.index('name="outcome"')
           and all(f'data-check="{x}"' in page for x in ("Image", "Prescriber and issuance", "Medicines")))
-    check("  the hold says its owner (who opened it) and the next step: call now", "owner <b>staff-a</b>" in page
-          and "now: call the clinic on the registry number" in page)
+    check("  the hold says its owner (who opened it) and the next step: call now", "Owner: <b>staff-a</b>" in page
+          and "Next: call the clinic now (registry number)" in page)
     s, _, holds = ph.req("GET", "/holds")
     check("holds page: id, opened, reason, owner, next step", hid in holds and "staff-a" in holds
           and "call the clinic" in holds and "Why it is held" in holds)
     s, loc, _ = ph.post(f"/hold/{hid}/take", {"case": cid})
     s, _, page = ph.req("GET", f"/case/{cid}")
     check("a pharmacist takes the hold: owner changes, history and audit say so", s == 200
-          and "owner <b>pharmacist-a</b>" in page and "Took the hold - <b>pharmacist-a</b>" in page
+          and "Owner: <b>pharmacist-a</b>" in page and "Took the hold - <b>pharmacist-a</b>" in page
           and r.db().execute("SELECT COUNT(*) FROM audit WHERE action = 'hold-assign' AND ref = ?", (hid,)).fetchone()[0] == 1)
     ph.post(f"/hold/{hid}/resolve", {"outcome": "unreachable", "case": cid, "note": "no answer"})
     s, _, page = ph.req("GET", f"/case/{cid}")
     due = (datetime.now() + timedelta(minutes=app.FOLLOW_UP_MIN)).strftime("%H:%M")
     check("  no answer -> the hold waits; next: call again in 2 h, 1 attempt", "call again at" in page
-          and "(1 attempt so far)" in page and "nothing is approved on its own" in page, due)
+          and "(1 attempt so far)" in page and "Waiting for a call-back" in page, due)
     app.FOLLOW_UP_MIN = 0
     s, _, holds = ph.req("GET", "/holds")
     check("  past the follow-up time it is marked OVERDUE on the holds page", "OVERDUE since" in holds

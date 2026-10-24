@@ -242,16 +242,16 @@ def parse(lines, known, is_high=lambda text: False, today=None, strengths=None):
         med.pop("box")
         med["crop"], med["src"] = crop(ln), ln.get("src", "ocr")
         if med["conf"] < FILL_MIN:
-            unclear.append({**med, "why": "hard to read - check the slip"})
+            unclear.append({**med, "why": "hard to read"})
         elif not med["known"] and med["conf"] < CONFIRM_ABOVE:
-            unclear.append({**med, "why": "not a name this pharmacy has on file, and not clearly read - check the slip"})
+            unclear.append({**med, "why": "name not on file, unclear"})
         else:
             new_strength = (med["src"] == "ocr" and med["strength"]
                             and med["num"] not in strengths.get(_norm(med["name"]), set()))
-            why = ("high-risk medicine" if med["high"] else "not a name this pharmacy has on file" if not med["known"]
+            why = ("high-risk medicine" if med["high"] else "name not on file" if not med["known"]
                    else "no strength read" if not med["strength"]
-                   else "strength not dispensed here before for this medicine" if new_strength
-                   else "read with low confidence" if med["conf"] < CONFIRM_ABOVE else "")
+                   else "strength new here" if new_strength
+                   else "low confidence" if med["conf"] < CONFIRM_ABOVE else "")
             drugs.append({**med, "confirm": bool(why), "why": why})
 
     out = {"drugs": drugs, "unclear": unclear, "crops": crops}
@@ -326,10 +326,10 @@ def confirmations(ocr, fields):
     for d in ocr.get("drugs", []):
         if d["confirm"] and _norm(d["text"]) in sent:
             out.append({"item": d["text"], "crop": d["crop"],
-                        "issue": f"read from the photo ({d['why']}) - check the name and strength against the slip"})
-    labels = {"regn": "Regn No read from the photo - check every character against the slip",
-              "doctor": "doctor's name read from the photo - check it against the slip",
-              "rx_date": "date read from the photo - check day and month against the slip"}
+                        "issue": f"read from slip · {d['why']}"})
+    labels = {"regn": "read from slip · check every character",
+              "doctor": "read from slip · doctor's name",
+              "rx_date": "read from slip · day and month"}
     for key, issue in labels.items():
         r = ocr.get(key)
         if r and r["confirm"] and _norm(fields.get(key)) == _norm(r["value"]):

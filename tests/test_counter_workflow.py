@@ -134,9 +134,9 @@ with tempfile.TemporaryDirectory() as t:
     cid = loc.split("/")[-1]
     s, _, page, _ = ph.follow(loc)
     check("case page asks what is being sold, shows pre-check", s == 200 and "What is the customer buying?" in page
-          and "Image check:" in page)
+          and 'class="status-row pre-check"' in page)
     s, _, page, _ = ph.post(f"/case/{cid}/check", {"drugs": "Alprx .25", "regn": "11111"})
-    check("ambiguous entry -> must confirm against the slip first", s == 200 and "Check these against the slip" in page
+    check("ambiguous entry -> must confirm against the slip first", s == 200 and "Tick against the slip" in page
           and page.count('name="confirm"') == 2)
     s, loc, _, _ = ph.post(f"/case/{cid}/check", {"drugs": "Alprx .25", "regn": "11111", "confirm": ["0"]})
     check("  partial confirmation is not enough", s == 200)

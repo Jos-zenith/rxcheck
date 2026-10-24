@@ -69,7 +69,7 @@ conf = {d["text"]: (d["confirm"], d["why"]) for d in res["drugs"]}
 check("  a known routine medicine read clearly needs no tick", conf["Dolo 650"] == (False, ""), conf)
 check("  a high-risk medicine always needs a tick", conf["Alprax 0.25"] == (True, "high-risk medicine"), conf)
 check("  a clearly read name not on file is filled in, with a tick", conf["Ascoril LS 5 ml"][0]
-      and "not a name this pharmacy has on file" in conf["Ascoril LS 5 ml"][1], conf)
+      and "name not on file" in conf["Ascoril LS 5 ml"][1], conf)
 check("  the Regn No always needs a tick (a misread digit can name another doctor -> RED)", res["regn"]["confirm"])
 check("  doctor and date read clearly need none", not res["doctor"]["confirm"] and not res["rx_date"]["confirm"])
 
@@ -97,7 +97,7 @@ check("glued text and directions: the whole strength, never a dose or a duration
 res = parse([line("Tab. Dolo 65 mg"), line("Tab. Dolo 650 mg", y=100)])
 why = [(d["text"], d["confirm"], d["why"]) for d in res["drugs"]]
 check("a clear reading of a known name with a strength not dispensed here (650 -> 65) needs a tick",
-      why == [("Dolo 65", True, "strength not dispensed here before for this medicine"), ("Dolo 650", False, "")], why)
+      why == [("Dolo 65", True, "strength new here"), ("Dolo 650", False, "")], why)
 check("  with no history of strengths given, every OCR strength needs a tick",
       all(d["confirm"] for d in parse([line("Tab. Dolo 650 mg")], strengths=None)["drugs"]))
 
@@ -258,18 +258,18 @@ with tempfile.TemporaryDirectory() as t:
     st, _, page, *_ = ph.post(f"/case/{cid}/check", sent)
     ticks = page.count('name="confirm"')
     check("sent with ticks missing -> state 'Check blocked'", 'data-ocr-state="blocked"' in page
-          and ">Check blocked</span>" in page and "Tick the 3 item(s)" in page)
+          and ">Check blocked</span>" in page and "3 to tick" in page)
     check("sent unchanged -> ticks for the name not on file (new counter: no Dolo yet), the high-risk medicine and "
           "the Regn No, each beside its crop",
-          st == 200 and ticks == 3 and "not a name this pharmacy has on file" in page and "high-risk medicine" in page
-          and "check every character against the slip" in page and page.count('class="crop"') >= 3, ticks)
+          st == 200 and ticks == 3 and "name not on file" in page and "high-risk medicine" in page
+          and "check every character" in page and page.count('class="crop"') >= 3, ticks)
     st, loc, *_ = ph.post(f"/case/{cid}/check", dict(sent, confirm=["0", "1"]))
     check("  two ticks of three are not enough", st == 200)
     st, loc, *_ = ph.post(f"/case/{cid}/check", dict(sent, confirm=["0", "1", "2"]))
     check("  all ticked -> decision", st == 303 and loc == f"/case/{cid}")
     rows = {a: json.loads(d) for a, d in r.db().execute("SELECT action, detail FROM audit WHERE ref = ?", (cid,))}
     check("audit: the ticked photo readings, and the counts of what was kept",
-          any("read from the photo" in i["issue"] for i in rows["entry-confirmed"]["issues"])
+          any("read from slip" in i["issue"] for i in rows["entry-confirmed"]["issues"])
           and {k: rows["ocr-use"][k] for k in ("status", "offered", "kept", "changed", "unclear", "engine")}
           == {"status": "done", "offered": 5, "kept": 5, "changed": 0, "unclear": 1, "engine": "rapidocr"}
           and len(rows["ocr-use"]["readings"]) == 6, rows.get("ocr-use"))
@@ -301,7 +301,7 @@ with tempfile.TemporaryDirectory() as t:
     cid3 = loc.split("/")[-1]
     st, _, data = wait_read(ph, cid3)
     check("engine failure -> 'could not be read', form empty, check still works",
-          data.get("status") == "failed" and data["values"] == {} and "could not be read" in data["panel"]
+          data.get("status") == "failed" and data["values"] == {} and "Could not read" in data["panel"]
           and ph.post(f"/case/{cid3}/check", {"drugs": "Dolo 650"})[0] == 303, data)
     calls["fail"] = False
 
@@ -334,7 +334,7 @@ with tempfile.TemporaryDirectory() as t:
     st, _, data = wait_read(ph, cidp)
     check("2-page PDF with a text layer: read from its text, medicines from page 2, no OCR engine call",
           st == 200 and data["values"].get("drugs") == "Dolo 650, Alprax 0.25" and data["values"].get("regn") == "TN-45821"
-          and calls["n"] == n and "(2 pages)" in data["panel"], data)
+          and calls["n"] == n and "2 pages" in data["panel"], data)
     case = json.loads((r.LEDGER_DIR / "uploads" / f"{cidp}.json").read_text(encoding="utf-8"))
     p2 = next(i for i, c in enumerate(case["ocr"]["crops"]) if c["page"] == 1)
     st, _, _, img, ctype = ph.req("GET", f"/case/{cidp}/crop/{p2}")

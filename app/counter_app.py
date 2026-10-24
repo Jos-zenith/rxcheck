@@ -30,6 +30,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, quote
 
+import cv2
+
 import doctor_confirmation as dp
 import slip_reader as ocr
 import pdf_pages
@@ -346,9 +348,56 @@ th{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mu
 img.crop{display:block;max-width:100%;max-height:72px;border:var(--bw) solid var(--line);border-radius:6px;background:#fff}
 .issues img.crop{margin:4px 0 6px 28px;max-width:calc(100% - 28px)}
 .s-quiet{background:var(--bg);color:var(--ink);border-color:var(--line)}.ocr .pill{margin-right:6px}
-.reading-status .pill{margin-right:6px}
+.reading-status .pill{margin-right:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.status-row{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:8px 0}
+.hero-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:6px}
+.hero-head h1,.hero-head h2{margin:0}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:99px;font-size:.85rem;font-weight:600;
+border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.chip.warn{border-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
+.chip.ok{border-color:var(--green);background:var(--green-bg);color:var(--green)}
+.chip.src{border-color:var(--accent);color:var(--accent);background:var(--card)}
+label .chip{margin-left:6px;vertical-align:1px}
+details.tip{display:inline-block;position:relative}
+details.tip>summary{list-style:none;display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;
+border:var(--bw) solid var(--muted);color:var(--muted);font:italic 700 .8rem/1 Georgia,serif;cursor:pointer}
+details.tip>summary::-webkit-details-marker{display:none}
+details.tip[open]>summary{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.tip-body{position:absolute;z-index:15;left:0;top:30px;width:min(340px,80vw);padding:10px 12px;border-radius:10px;
+background:var(--card);color:var(--ink);border:var(--bw) solid var(--line);box-shadow:0 6px 18px #00000030;font-size:.92rem;
+font-weight:400;line-height:1.45}
+.drop{align-items:center;text-align:center;padding:6px 0}.drop-icon{color:var(--accent)}
+.samples .sample{padding:0;border:0;background:none}
+.sample-btn{display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:100%;height:100%;padding:10px;
+border-radius:12px;border:var(--bw) solid var(--line);background:var(--bg);color:var(--ink);text-align:left;font-weight:600}
+.sample-btn:hover{border-color:var(--accent)}.sample-btn img{width:100%;height:120px;object-fit:cover;object-position:top;
+border-radius:8px;border:var(--bw) solid var(--line);background:#fff}
+ul.chips{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+ul.chips li{margin:0;padding:3px 10px;border-radius:99px;font-size:.88rem;font-weight:600;border:1px solid var(--line)}
+ul.chips li.yes{border-color:var(--green);color:var(--green);background:var(--green-bg)}
+ul.chips li.no{color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stats div{padding:10px 12px;border-radius:10px;border:var(--bw) solid var(--line);color:var(--muted);font-size:.86rem}
+.stats b{display:block;font-size:1.6rem;color:var(--ink);line-height:1.15}.stats .t-green b{color:var(--green)}
+details.more{margin:10px 0 0}details.more>summary{color:var(--accent)}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);
+animation:rx-spin .8s linear infinite}@keyframes rx-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.read-as{display:block;font-size:.85rem}
+.issues h2{display:flex;align-items:center;gap:8px;font-size:1rem;margin:0}.issues .count{display:inline-grid;
+place-items:center;min-width:24px;height:24px;border-radius:99px;background:var(--amber);color:var(--amber-bg);font-size:.85rem}
+.issues .hint{margin:2px 0 6px}
+details.chk{border-top:var(--bw) solid var(--line);padding:2px 0}details.chk:first-of-type{border-top:0}
+details.chk>summary{display:grid;grid-template-columns:28px auto auto 1fr;gap:4px 10px;align-items:center;padding:8px 0;
+list-style:none}details.chk>summary::-webkit-details-marker{display:none}
+.chk .ico{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;font-weight:900;border:1px solid}
+.chk .area{font-weight:700}.chk .find{grid-column:2/-1;color:var(--muted);font-size:.94rem}
+.chk-body{padding:0 0 8px 38px}
+@media (min-width:700px){.chk .find{grid-column:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details.chk[open] .find{white-space:normal}}
+.verdict .why .tip{margin-left:8px;vertical-align:2px}.verdict .why .tip-body{color:var(--ink)}
 tr.late td,tr.late th{background:var(--amber-bg)}.hold-meta{margin:0 0 4px}
-.checks .chk{padding:10px 0;border-top:var(--bw) solid var(--line)}.checks .chk:first-of-type{border-top:0;padding-top:0}
 .checks h3{display:flex;gap:10px;align-items:center;margin:0 0 4px}.checks p{margin:4px 0}
 .checks ul.ev{margin:4px 0;color:var(--muted);font-size:.94rem}.checks .unknown{color:var(--muted);font-size:.94rem}.demo-about pre{overflow-x:auto;padding:12px;border-radius:10px;background:var(--bg);
 border:var(--bw) solid var(--line);font-size:.88rem}table.compact td,table.compact th{padding:6px 8px}
@@ -465,13 +514,29 @@ def plain(reason):
     return re.sub(r" - strokes match \d+% at 1px", " - the changed areas are marked in the evidence", reason or "")
 
 
+def tip(label, body):
+    """An explanation on demand: an (i) that opens in place. Native <details>: keyboard and screen reader friendly."""
+    return (f'<details class="tip"><summary><span aria-hidden="true">i</span><span class="sr">{esc(label)}</span>'
+            f'</summary><div class="tip-body">{body}</div></details>')
+
+
+def chip(text, kind=""):
+    return f'<span class="chip{" " + kind if kind else ""}">{text}</span>'
+
+
+UPLOAD_ICON = ('<svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true" width="40" height="40"><path fill="none" '
+               'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 '
+               '4m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>')
+
+
 def verdict_block(verdict, reason, extra=""):
     word, sub = VERDICT_UI[verdict]
     reason = plain(reason)
+    head, _, rest = reason.partition(" - ")   # the finding first; its explanation on demand
     icon = {"RED": "&#x2715;", "AMBER": "!", "GREEN": "&#x2713;"}[verdict]
     return (f'<section class="verdict v-{verdict}" role="status"><span class="icon" aria-hidden="true">{icon}</span>'
             f'<div><div class="word">{word}</div><div class="sub">{esc(sub)}</div>'
-            f'<p class="why">{esc(reason)}</p></div></section>{extra}')
+            f'<p class="why">{esc(head)}{tip("More about this", esc(rest)) if rest else ""}</p></div></section>{extra}')
 
 
 def backup_line():
@@ -569,12 +634,10 @@ def home_page(user):
     backup = backup_line()
     alerts = holds + (backup.replace('<p class="warn">', '<p class="notice notice-red">') if 'class="warn"' in backup else "")
     status = "" if 'class="warn"' in backup else f'<section class="card">{backup}</section>'
-    return page("Counter", f"""{alerts}{demo_panel(user)}<div class="home"><section class="card hero" id="check"><h1>Check a prescription</h1>
-<p class="muted">Photo of the paper slip, the image the customer forwarded, or a PDF.</p>{reading_status()}
+    return page("Counter", f"""{alerts}{demo_panel(user)}<div class="home"><section class="card hero" id="check"><div class="hero-head"><h1>Check a prescription</h1>{reading_status()}</div>
 <form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
-<label for="image" class="drop"><span class="drop-title">Prescription photo or PDF {kbd("Mod+U")}</span>
-<span class="muted"><span class="js-only">Choose a file, drop it here or paste it with Ctrl+V: the analysis starts as soon as you
- do.</span><span class="nojs-only">Choose a file, then press Analyse prescription.</span></span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
+<label for="image" class="drop">{UPLOAD_ICON}<span class="drop-title">Photo or PDF of the slip</span>
+<span class="muted"><span class="js-only">Drop, paste or choose - it starts by itself</span><span class="nojs-only">Choose a file, then Analyse</span> {kbd("Mod+U")}</span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
  required data-shortcut="upload" aria-keyshortcuts="Control+U Meta+U">
 <p class="upload-status" role="status" aria-live="polite" data-upload-status></p>
 <p class="nojs-only"><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Analyse prescription</button>{kbd("Mod+Enter")}</p></form></section>
@@ -583,22 +646,20 @@ def home_page(user):
 
 
 def reading_status():
-    """Next to the photo field: whether this counter reads the slip, so nobody expects what is not there."""
+    """Next to the photo field: whether this counter reads the slip. A badge; the why on demand."""
     if not ocr.enabled():
-        state, label, cls = "off", "Slip reading switched off", "s-quiet"
-        text = "The check takes about two seconds; staff type the medicines from the slip."
+        state, label, cls = "off", "Slip reading off", "s-quiet"
+        why = "Switched off on this counter (RXCHECK_OCR=off). Staff type the medicines from the slip."
     elif ocr.available():
         state, label, cls = "on", "Slip reading on", "v-GREEN"
-        text = ("The check takes about two seconds. Reading the slip to fill in the form takes 5-15 s more, on this "
-                "PC; what it is unsure of is shown for you to check.")
+        why = ("Reads the slip in 5-15 s while you work and fills in what it can. Anything uncertain is marked for a "
+               "tick against the slip. Nothing leaves this PC.")
     else:
         state, label, cls = "missing", "Slip reading not installed", "s-quiet"
-        text = "The check takes about two seconds; staff type the medicines from the slip."
-        if DEMO:
-            text = ("The check takes about two seconds. This public demo has no OCR engine, so your own photos are "
-                    "not read: the <b>Printed slip</b> sample below replays a reading recorded with the engine.")
-    return (f'<p class="reading-status" data-ocr-status="{state}"><span class="pill {cls}">{label}</span> '
-            f'{text if "<b>" in text else esc(text)}</p>')
+        why = ("Your own photos are not read on this public demo: the Printed slip sample replays a reading recorded "
+               "with the engine.") if DEMO else "Staff type the medicines. To install: requirements-ocr.txt."
+    return (f'<div class="status-row reading-status" data-ocr-status="{state}"><span class="pill {cls}">{label}</span>'
+            f'{tip("About slip reading", esc(why))}</div>')
 
 
 def ocr_results():
@@ -611,52 +672,54 @@ def ocr_results():
 
 
 def demo_about():
-    """Public demo: what it shows and what it does not, how the reader scored, and how to run it with OCR."""
+    """Public demo: what is in it, how the reader scored, how to run it - as chips and figures, details on demand."""
     res = ocr_results()
-    results = ""
+    figures = table = ""
     if res:
-        rows = "".join(f'<tr><th scope="row">{esc(x["label"])}</th><td>{x["slips"]}</td><td>{x["new_pct"]}%</td>'
+        rows = {x["kind"]: x for x in res["rows"]}
+        silent = sum(x["silent"] + x["silent_established"] for x in res["rows"])
+        printed, every = rows.get("printed") or {}, rows.get("ALL") or {}
+        figures = (f'<div class="stats"><div class="t-green"><b>{silent}</b>silent errors</div>'
+                   f'<div><b>{printed.get("established_pct", "-")}%</b>printed slips read right</div>'
+                   f'<div><b>{every.get("slips", "-")}</b>synthetic test slips</div></div>'
+                   f'<p class="hint">Synthetic slips - not real-world accuracy. Real handwriting is mostly not read.</p>')
+        body = "".join(f'<tr><th scope="row">{esc(x["label"])}</th><td>{x["slips"]}</td><td>{x["new_pct"]}%</td>'
                        f'<td>{x["established_pct"]}%</td><td>{x["silent"] + x["silent_established"]}</td></tr>'
                        for x in res["rows"])
-        results = (f'<h3>How the slip reader scored</h3><div class="scroll"><table class="compact"><caption class="muted">50 synthetic slips, '
-                   f'scored {esc(res.get("scored_on") or "")}. Medicines filled in exactly right on a new counter (only '
-                   f'the drug list on file) / an established one (every medicine dispensed before). Silent errors = '
-                   f'filled in wrong with no tick asked.</caption><thead><tr><th scope="col">Slips</th>'
-                   f'<th scope="col">n</th><th scope="col">New</th><th scope="col">Established</th>'
-                   f'<th scope="col">Silent errors</th></tr></thead><tbody>{rows}</tbody></table></div>'
-                   f'<p class="hint">Synthetic slips, not evidence of accuracy on real prescriptions. The handwriting '
-                   f'row is typed text in handwriting-style fonts - far tidier than a doctor\'s pen. Real handwriting '
-                   f'is mostly not read.</p>')
-    return (f'<section class="card demo-about" aria-labelledby="about-h"><h2 id="about-h">What this demo includes</h2>'
-            f'<ul><li><b>The checks</b> on synthetic slips: an edited copy of a recorded slip, the same slip re-sent, '
-            f'a new slip with a high-risk medicine.</li>'
-            f'<li><b>Slip reading, replayed:</b> the Printed slip sample fills the form from a reading recorded with the '
-            f'OCR engine, leaves the smudged line for you, and asks for ticks before the check.</li>'
-            f'<li><b>The counter around it:</b> holds and call-backs, who did what, the audit log, today\'s figures.</li>'
-            f'<li><b>Not here:</b> live OCR of your own photos (needs a PC: about 10 s a slip), real doctors, real '
-            f'registry data, drug interaction or allergy checks.</li></ul>{results}'
-            f'<h3>Run it with live slip reading</h3><pre><code>pip install -r requirements.txt -r requirements-ocr.txt\n'
+        table = (f'<details class="more"><summary>Scores by slip type</summary><div class="scroll"><table class="compact">'
+                 f'<thead><tr><th scope="col">Slips</th><th scope="col">n</th><th scope="col">New counter</th>'
+                 f'<th scope="col">Established</th><th scope="col">Silent errors</th></tr></thead><tbody>{body}</tbody>'
+                 f'</table></div><p class="hint">Scored {esc(res.get("scored_on") or "")}. Medicines filled in exactly '
+                 f'right with only the drug list on file (new) or every medicine dispensed before (established). '
+                 f'Silent error = filled in wrong with no tick asked. Synthetic slips, not evidence of accuracy on real '
+                 f'prescriptions; the handwriting row is typed handwriting-style fonts.</p></details>')
+    yes = ("Image checks", "Slip reading (replay)", "Holds and audit")
+    no = ("Live OCR of your photos", "Real doctors and registry", "Interaction or allergy checks")
+    chips = ("".join(f'<li class="yes"><span aria-hidden="true">&#x2713;</span> {x}</li>' for x in yes)
+             + "".join(f'<li class="no"><span aria-hidden="true">&#x2715;</span> <span class="sr">Not included:</span>'
+                       f' {x}</li>' for x in no))
+    return (f'<section class="card demo-about" aria-labelledby="about-h"><h2 id="about-h">This demo</h2>'
+            f'<ul class="chips">{chips}</ul>{figures}{table}'
+            f'<details class="more"><summary>Run with live slip reading</summary><pre><code>'
+            f'pip install -r requirements.txt -r requirements-ocr.txt\n'
             f'pip install --no-deps rapidocr_onnxruntime==1.4.4\npython app/slip_reader.py slip.jpg     # one photo\n'
-            f'python app/rxcheck.py serve        # the counter</code></pre></section>')
+            f'python app/rxcheck.py serve        # the counter</code></pre></details></section>')
 
 
 def demo_panel(user):
-    """Public demo: one-click synthetic sample slips, so a visitor sees every verdict without a prescription."""
+    """Public demo: one-click synthetic sample slips - a thumbnail, the verdict it gives, its name."""
     meta = demo_samples() if DEMO and demo_ready() else None
     if not meta:
         return ""
-    ref = meta["reference"]
     tiles = "".join(
         f'<form method="post" action="/demo/try" class="sample">{csrf_field(user)}'
-        f'<input type="hidden" name="key" value="{esc(s["key"])}">'
+        f'<input type="hidden" name="key" value="{esc(s["key"])}"><button type="submit" class="sample-btn">'
+        f'<img src="/demo/thumb/{esc(s["key"])}" alt="" width="180" height="120" loading="lazy">'
         f'<span class="pill v-{esc(s.get("expect", "GREEN"))}">{esc(s.get("expect", ""))}</span>'
-        f'<b>{esc(s["label"])}</b><span class="muted">{esc(s.get("what", ""))}</span>'
-        f'<button type="submit" class="secondary">Check this sample</button></form>'
+        f'<b>{esc(s["label"])}</b></button></form>'
         for s in meta["samples"] if (DEMO_DIR / s["image"]).is_file())
-    return (f'<section class="card demo-try" aria-labelledby="demo-h"><h2 id="demo-h">Try it with a sample slip</h2>'
-            f'<p>This public demo has one slip on record: <b>{esc(ref["id"])}</b>, dispensed {esc(ref["dispensed"])}. '
-            f'Each sample below is a synthetic test image. The Printed slip is read by OCR (a recorded reading); '
-            f'for the others the medicines are filled in for you.</p>'
+    return (f'<section class="card demo-try" aria-labelledby="demo-h"><div class="hero-head"><h2 id="demo-h">Try a sample '
+            f'slip</h2>{tip("About the samples", "Synthetic test images. One slip is on record as dispensed (" + esc(meta["reference"]["id"]) + "), so copies of it are recognised. The Printed slip is read by OCR (a recorded reading); for the others the medicines are filled in for you.")}</div>'
             f'<div class="samples">{tiles}</div></section>')
 
 
@@ -674,42 +737,47 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
             f[k] = f.get(k) or v
     note = ""
     if signed:
-        note = ('<p class="muted">Filled in from the clinic-signed code on the slip. Remove any medicine the customer '
-                'is not buying now.</p>')
+        note = (f'<div class="status-row">{chip("Filled from the clinic-signed code", "ok")}'
+                f'{tip("About the signed code", "Remove any medicine the customer is not buying now.")}</div>')
     elif iss.get("status") == "invalid":
         note = f'<p class="warn">{esc(iss["message"])}</p>'
     issue_html = ""
     if issues:
-        items = "".join(f'<li><label class="tick">'
-                        f'<input type="checkbox" name="confirm" value="{i}" required> <span><b>{esc(x["item"])}</b>: '
-                        f'{esc(x["issue"])}</span></label>{crop_img(cid, x.get("crop"), x["item"])}</li>'
-                        for i, x in enumerate(issues))
-        issue_html = (f'<div class="issues"><b>Check these against the slip before continuing.</b> Correct the entry '
-                      f'above, or tick to confirm it is exactly what the slip says.<ul>{items}</ul></div>')
+        items = "".join(f'<li><label class="tick"><input type="checkbox" name="confirm" value="{i}" required>'
+                        f'<span><b>{esc(x["item"])}</b> {chip(esc(x["issue"]), "warn")}</span></label>'
+                        f'{crop_img(cid, x.get("crop"), x["item"])}</li>' for i, x in enumerate(issues))
+        issue_html = (f'<div class="issues" role="group" aria-labelledby="issues-h"><h2 id="issues-h">Tick against the '
+                      f'slip <span class="count">{len(issues)}</span></h2><p class="hint">Or correct the entry above.</p>'
+                      f'<ul>{items}</ul></div>')
     v = pre["verdicts"]
-    if v["routine"] == v["high"]:
-        pre_line = f"Image check: {VERDICT_UI[v['routine']][0]}."
-    else:
-        pre_line = (f"Image check: {VERDICT_UI[v['routine']][0]} for routine medicines, "
-                    f"{VERDICT_UI[v['high']][0]} for high-risk ones.")
+    tier = lambda k: VERDICT_UI[v[k]][0].capitalize()   # noqa: E731
+    pre_chips = (f'<span class="pill v-{v["routine"]}">Image: {tier("routine")}</span>' if v["routine"] == v["high"] else
+                 f'<span class="pill v-{v["routine"]}">Routine: {tier("routine")}</span>'
+                 f'<span class="pill v-{v["high"]}">High-risk: {tier("high")}</span>')
     if max(v.values(), key=r.ORDER.index) != "GREEN":
-        pre_line += " " + plain(pre.get("reason", ""))
+        pre_chips += tip("Why", esc(plain(pre.get("reason", ""))))
+    pre_line = f'<div class="status-row pre-check">{pre_chips}</div>'
     err = f'<p class="warn">{esc(error)}</p>' if error else ""
+    # which fields the reading filled in, and which of those will need a tick: shown on the fields themselves
+    from_slip, to_tick = set(), set()
+    if not fields and not signed and read.get("status") == "done":
+        vals, to_tick = field_marks(read)
+        from_slip = {k for k in vals if f.get(k) == vals[k]}
+    mark = lambda k: (chip("check", "warn") if k in to_tick else chip("from slip", "src") if k in from_slip else "")  # noqa: E731
     return page("Enter medicines", f"""<div class="decision"><div><section class="card"><h1>What is the customer buying?</h1>
-<p class="muted">{esc(pre_line)}</p>{note}{err}{"" if signed else ocr_panel(cid, read, issues)}{pdf_note(case)}
+{pre_line}{note}{err}{"" if signed else ocr_panel(cid, read, issues)}{pdf_note(case)}
 <form method="post" action="/case/{cid}/check" data-primary>{csrf_field(user)}
-<label for="drugs">Medicines and strengths being sold (as on the slip)</label>
+<label for="drugs">Medicines and strengths being sold {mark("drugs")}</label>
 <div data-lookup="drug" data-multi><input type="text" id="drugs" name="drugs" value="{esc(f.get("drugs"))}"
  placeholder="e.g. Alprax 0.25, Dolo 650" required aria-describedby="drugs-hint"></div>
-<p class="hint" id="drugs-hint">Suggestions give the medicine name only - type the strength from the slip.</p>
-<div class="row"><div><label for="regn">Doctor's Regn No (from the slip)</label>
+<p class="hint" id="drugs-hint">Suggestions give the name only; the strength comes from the slip.</p>
+<div class="row"><div><label for="regn">Doctor's Regn No {mark("regn")}</label>
 <div data-lookup="regn"><input type="text" id="regn" name="regn" value="{esc(f.get("regn"))}"
  aria-describedby="prescriber-hint"></div></div>
-<div><label for="doctor">Doctor's name</label><div data-lookup="doctor"><input type="text" id="doctor" name="doctor"
+<div><label for="doctor">Doctor's name {mark("doctor")}</label><div data-lookup="doctor"><input type="text" id="doctor" name="doctor"
  value="{esc(f.get("doctor"))}" aria-describedby="prescriber-hint"></div></div>
-<div><label for="rx_date">Date on the slip</label><input type="date" id="rx_date" name="rx_date" value="{esc(f.get("rx_date"))}"></div></div>
-<p class="hint" id="prescriber-hint">Type the Regn No and the name exactly as printed on the slip. Choosing a
- suggestion fills only that field - never the other one, so the check can still compare them.</p>
+<div><label for="rx_date">Date on the slip {mark("rx_date")}</label><input type="date" id="rx_date" name="rx_date" value="{esc(f.get("rx_date"))}"></div></div>
+<p class="hint" id="prescriber-hint">As printed on the slip. A suggestion fills only its own field.</p>
 <label for="patient">Patient name (optional)</label>
 <div data-lookup="patient"><input type="text" id="patient" name="patient" value="{esc(f.get("patient"))}"
  autocomplete="off"></div>
@@ -718,12 +786,22 @@ def entry_form(user, cid, case, fields=None, issues=None, error=""):
 </div><div class="d-side"><section class="card"><h2>The slip</h2><img class="evidence" src="/img/{cid}" alt="Prescription image as received">{more_pages(cid, case)}</section></div></div>""", user)
 
 
+def field_marks(read):
+    """(values the reading fills in, the fields among them that will need a tick if sent unchanged)."""
+    vals, ticks = ocr.values(read), set()
+    for c in ocr.confirmations(read, vals):
+        if any(c["item"] == d["text"] for d in read.get("drugs", [])):
+            ticks.add("drugs")
+        ticks.update(k for k in ("regn", "doctor", "rx_date") if (read.get(k) or {}).get("value") == c["item"])
+    return vals, ticks
+
+
 def pdf_note(case):
     n = case.get("pages") or 1
     if case.get("source") != "pdf":
         return ""
-    return (f'<p class="hint">PDF, {n} page{"s" if n != 1 else ""}. The image checks (seen before, edited copy) used '
-            f'page 1 only; the text in a PDF says what the file says, not who issued it.</p>')
+    return (f'<div class="status-row">{chip(f"PDF &middot; {n} page" + ("s" if n != 1 else ""))}'
+            f'{tip("About PDFs", "PDF, " + str(n) + " page" + ("s" if n != 1 else "") + ". The image checks (seen before, edited copy) used page 1 only; the text in a PDF says what the file says, not who issued it.")}</div>')
 
 
 def more_pages(cid, case):
@@ -769,51 +847,45 @@ def ocr_state(read, issues=None):
 
 
 def ocr_panel(cid, read, issues=None):
-    """The reading's state, what it found (filled into empty fields), and what it could not read (shown with the
-    part of the slip, for staff to type)."""
+    """The reading's state as a badge and counts; unclear lines as cut-outs; the explanation on demand."""
     read = read or {}
     state = ocr_state(read, issues)
     label, cls = OCR_STATES[state]
-    pages = f" ({read['pages']} pages)" if (read.get("pages") or 1) > 1 else ""
     if state == "confirm":
         label += f" ({len(ocr.confirmations(read, ocr.values(read)))})"
-    chip = f'<span class="pill {cls}" data-ocr-chip>{esc(label)}</span> '
+    badge = f'<span class="pill {cls}" data-ocr-chip>{esc(label)}</span>'
     attrs = f'class="ocr" id="ocr" role="status" data-ocr-state="{state}"'
     if state == "reading":
-        return (f'<div {attrs} data-ocr-pending="/case/{cid}/ocr"><p>{chip}<b>Reading the slip</b> to fill in what it '
-                f'can (5-15 s a page, on this PC). You can start typing: nothing you type is replaced.</p>'
-                f'<p class="hint">Without JavaScript, <a href="/case/{cid}">reload this page</a> before typing.</p></div>')
+        return (f'<div {attrs} data-ocr-pending="/case/{cid}/ocr"><div class="status-row"><span class="spin" '
+                f'aria-hidden="true"></span>{badge}<span class="muted">Reading the slip - type meanwhile, nothing you type '
+                f'is replaced</span></div><noscript><p><a href="/case/{cid}">Reload when read</a></p></noscript></div>')
     if state == "failed":
-        return (f'<div {attrs}><p>{chip}The slip could not be read automatically. Type the medicines from the slip.'
-                f'</p></div>')
+        return f'<div {attrs}><div class="status-row">{badge}<span class="muted">Type from the slip</span></div></div>'
     if state == "disabled" or (state == "blocked" and read.get("status") != "done"):
         why = OFF_REASONS.get(read.get("why"), "The slip was not read for this check.")
-        lead = (f"Tick the {len(issues)} item(s) below, or correct them, to continue." if state == "blocked"
-                else "Type the medicines from the slip.")
-        return f'<div {attrs}><p>{chip}{esc(why)} {esc(lead)}</p></div>'
-    found = [d["text"] for d in read.get("drugs", [])]
-    found += [f'{lbl} {read[k]["value"]}' for k, lbl in (("regn", "Regn No"), ("doctor", "doctor"),
-                                                         ("rx_date", "date")) if read.get(k)]
-    if state == "blocked":
-        lead = f"Tick the {len(issues)} item(s) below against the slip, or correct them, to continue."
-    elif state == "confirm":
-        lead = "Filled into empty fields only. Check each one against the slip; the marked ones are ticked when you continue."
-    else:
-        lead = "Filled into empty fields only. Check each one against the slip."
-    head = (f'<p>{chip}<b>Read from the slip{pages}:</b> {esc(", ".join(found))}. {esc(lead)}</p>' if found else
-            f'<p>{chip}<b>Nothing could be filled in from the slip{pages}.</b> Type the medicines from the slip.</p>')
-    unread = (f'<p class="hint">Page(s) {", ".join(str(p) for p in read["unread"])} could not be read: photo reading '
-              f'is not installed, and the page has no text layer.</p>' if read.get("unread") else "")
-    # an unclear line is shown as the engine read it, typos and all: the cut-out next to it is what to go by
-    unclear = "".join(f'<li>{crop_img(cid, u.get("crop"), u["text"])}<span>Read as <b>{esc(u.get("raw") or u["text"])}'
-                      f'</b>: {esc(u["why"])}. Not filled in - type it from the slip if it is being sold.</span></li>'
-                      for u in read.get("unclear", []))
-    unclear = f'<ul class="ocr-list">{unclear}</ul>' if unclear else ""
-    replay = ('<p class="hint"><b>Recorded reading.</b> Slip reading is not installed on this public demo, so this '
-              'sample replays what the OCR engine read from this same image on a PC. Everything after that - what is '
-              'filled in, what needs a tick, the check - runs here, live.</p>'
-              if "recorded" in (read.get("engine") or "") else "")
-    return f'<div {attrs}>{head}{replay}{unread}{unclear}</div>'
+        extra = chip(f"{len(issues)} to tick", "warn") if state == "blocked" else ""
+        return f'<div {attrs}><div class="status-row">{badge}{extra}{tip("Why", esc(why))}</div></div>'
+    n_fill = len(read.get("drugs", [])) + sum(1 for k in ("regn", "doctor", "rx_date") if read.get(k))
+    n_tick = len(issues) if state == "blocked" else len(ocr.confirmations(read, ocr.values(read)))
+    unclear = read.get("unclear", [])
+    pages = read.get("pages") or 1
+    counts = (chip(f"{n_fill} filled", "src") + (chip(f"{n_tick} to tick", "warn") if n_tick else "")
+              + (chip(f"{len(unclear)} unclear") if unclear else "") + (chip(f"{pages} pages") if pages > 1 else ""))
+    replay = "recorded" in (read.get("engine") or "")
+    about = ("<b>Recorded reading.</b> Slip reading is not installed on this public demo, so this sample replays what the "
+             "OCR engine read from this same image on a PC. What is filled in, what needs a tick and the check run here, "
+             "live. " if replay else "") + ("Read from the slip and filled into empty fields only. Marked fields need a "
+                                           "tick against the slip when you continue.")
+    unread = (chip(f'page {", ".join(str(p) for p in read["unread"])} not read', "warn") if read.get("unread") else "")
+    head = (f'<div class="status-row">{badge}{counts}{chip("Replay") if replay else ""}{unread}'
+            f'{tip("Read from the slip", about)}</div>')
+    if not n_fill:
+        head += '<p class="hint">Nothing could be filled in - type from the slip.</p>'
+    # an unclear line: its cut-out, and what the engine made of it, typos and all
+    items = "".join(f'<li>{crop_img(cid, u.get("crop"), u["text"])}<span>{chip("not filled - type it", "warn")}'
+                    f'<span class="muted read-as">read as &ldquo;{esc(u.get("raw") or u["text"])}&rdquo;</span></span></li>'
+                    for u in unclear)
+    return f'<div {attrs}>{head}{f"<ul class=ocr-list>{items}</ul>" if items else ""}</div>'
 
 
 # ---------------------------------------------------------------- what was checked, area by area
@@ -853,7 +925,7 @@ def explain(rep):
     elif m.get("identity") == "seen" or any(x.startswith(("SEEN BEFORE", "SEEN AT ANOTHER", "Exact same")) for x in img):
         image = ("seen", img[0], "No image was kept for the earlier check, so changes since then cannot be located.")
     else:
-        image = ("new", "Not seen before at this pharmacy",
+        image = ("new", "No record of this slip here to compare with",
                  "Only slips checked here (and at member pharmacies, if joined) are compared: a slip used anywhere else "
                  "looks new. A new slip is not a verified one.")
     image_ev = [x for x in img if x != image[1]] + (["File: " + "; ".join(file_notes) + " (supporting only)"]
@@ -907,15 +979,23 @@ def explain(rep):
             {"area": "Medicines", "status": med[0], "finding": med[1], "evidence": med_ev, "unknown": med_unknown}]
 
 
+CHECK_ICON = {"ok": "&#x2713;", "finding": "&#x2715;", "unverified": "!", "seen": "&#x21bb;", "new": "&ndash;",
+              "unchecked": "&ndash;", "high": "!"}
+
+
 def explain_card(rep):
+    """Three rows - image, prescriber and issuance, medicines: an icon, a status and the finding at a glance;
+    the evidence and what is not known when a row is opened (open already when it is a finding)."""
     rows = []
     for a in explain(rep):
         label, cls = CHECK_STATUS[a["status"]]
         ev = "".join(f"<li>{esc(plain(x))}</li>" for x in a["evidence"])
-        rows.append(f'<div class="chk" data-check="{esc(a["area"])}" data-status="{a["status"]}"><h3>{esc(a["area"])} '
-                    f'<span class="pill {cls}">{label}</span></h3><p>{esc(plain(a["finding"]))}</p>'
-                    + (f'<ul class="ev">{ev}</ul>' if ev else "")
-                    + f'<p class="unknown"><b>Not known:</b> {esc(a["unknown"])}</p></div>')
+        rows.append(f'<details class="chk" data-check="{esc(a["area"])}" data-status="{a["status"]}"'
+                    f'{" open" if a["status"] == "finding" else ""}><summary><span class="ico {cls}" aria-hidden="true">'
+                    f'{CHECK_ICON[a["status"]]}</span><span class="area">{esc(a["area"])}</span>'
+                    f'<span class="pill {cls}">{label}</span><span class="find">{esc(plain(a["finding"]))}</span></summary>'
+                    f'<div class="chk-body">' + (f'<ul class="ev">{ev}</ul>' if ev else "")
+                    + f'<p class="unknown"><b>Not known:</b> {esc(a["unknown"])}</p></div></details>')
     return (f'<section class="card checks" aria-labelledby="checks-h"><h2 id="checks-h">What was checked</h2>'
             f'{"".join(rows)}</section>')
 
@@ -1005,7 +1085,8 @@ def doctor_section(user, cid, case, hid, notice=""):
     ph = user["role"] == "pharmacist"
     said = dp.hold_decision(hid)   # a denial is shown even if the service is no longer connected
     if not dp.config() and not (said and said["decision"] == "denied"):
-        return ('<p class="muted">Doctor confirmation is not connected on this counter (rxcheck doctor trust).</p>'
+        return (f'<div class="status-row">{chip("Doctor app: not connected")}'
+                f'{tip("Doctor confirmation", "Doctor confirmation is not connected on this counter (rxcheck doctor trust). Call the clinic on the registry number.")}</div>'
                 if ph else "")
     asks = dp.asks(hid)
     pending = [a for a in asks if a["status"] == "pending"]
@@ -1113,9 +1194,9 @@ def follow_up(st, status, path):
     if status == "closed":
         return None, ""
     if path != "call":
-        return None, "now, at the counter (" + r.PATH_LABELS.get(path, path).lower() + ")"
+        return None, {"retake": "retake the photo now", "counter": "check at the counter now"}.get(path, "now")
     if not st["last_try"]:
-        return None, "now: call the clinic on the registry number"
+        return None, "call the clinic now (registry number)"
     due = datetime.fromisoformat(st["last_try"]) + timedelta(minutes=FOLLOW_UP_MIN)
     late = datetime.now() >= due
     return due, (f"OVERDUE since {due:%H:%M}" if late else f"call again at {due:%H:%M}") + \
@@ -1123,17 +1204,16 @@ def follow_up(st, status, path):
 
 
 def hold_meta(user, cid, hid, status, path):
-    """Owner, attempts and the next follow-up, with a button to take the hold."""
+    """Owner and next step as chips, with a button to take the hold."""
     st = hold_state(hid)
-    _, nxt = follow_up(st, status, path)
+    due, nxt = follow_up(st, status, path)
+    late = due is not None and datetime.now() >= due
     take = ("" if st["owner"] == user["name"] or status == "closed" else
             f'<form class="inline" method="post" action="/hold/{hid}/take">{csrf_field(user)}'
             f'<input type="hidden" name="case" value="{esc(cid)}">'
             f'<button type="submit" class="secondary small">Take this hold</button></form>')
-    return (f'<p class="hold-meta">Hold <b>{esc(hid)}</b> · owner <b>{esc(st["owner"] or "-")}</b>'
-            + (f' · next: <b>{esc(nxt)}</b>' if nxt else "") + f' {take}</p>'
-            '<p class="hint">If the clinic does not answer, record "No answer": the hold waits, the customer is told '
-            'when to come back, and nothing is approved on its own.</p>')
+    return (f'<div class="status-row hold-meta">{chip("Owner: <b>" + esc(st["owner"] or "-") + "</b>")}'
+            + (chip("Next: " + esc(nxt), "warn" if late or "now" in nxt else "") if nxt else "") + f'{take}</div>')
 
 
 def hold_history(hid):
@@ -1200,16 +1280,16 @@ def hold_form(user, cid, hid, path, status, doctor_html="", verdict=""):
     actions = [refuse] + buttons if refuse_first else buttons + [refuse]
     form_main = (f'<form method="post" action="/hold/{esc(hid)}/resolve">{csrf_field(user)}'
                  f'<input type="hidden" name="case" value="{cid}">'
-                 f'<label for="note">Note (who you spoke to, number called, what you saw - no patient names or health details)</label>'
-                 f'<input type="text" id="note" name="note">{fields}<div class="actions">{"".join(actions)}</div></form>')
+                 f'<label for="note">Note</label><input type="text" id="note" name="note" '
+                 f'placeholder="Who you spoke to, number called - no patient details">'
+                 f'{fields}<div class="actions">{"".join(actions)}</div></form>')
     override = ""
     no_override = r.hold_fail_closed(hid)
     if denied:
         override = ""
     elif ph and no_override:
-        override = (f'<p class="muted">No override: {esc(", ".join(no_override))} is dispensed only when the clinic '
-                    f'confirms or a counter check settles the warning (NDPS / Schedule X, or the drug list is '
-                    f'unusable). If the clinic cannot be reached, hand over the other items; the customer can return.</p>')
+        override = (f'<div class="status-row">{chip("No override: " + esc(", ".join(no_override)), "warn")}'
+                    f'{tip("Why no override", "NDPS / Schedule X (or the drug list is unusable): dispensed only when the clinic confirms or a counter check settles the warning. If the clinic cannot be reached, hand over the other items; the customer can return.")}</div>')
     elif ph:
         override = (f'<details class="override"><summary>Dispense without this step (override)</summary>'
                     f'<form method="post" action="/hold/{esc(hid)}/resolve">{csrf_field(user)}'
@@ -1218,8 +1298,8 @@ def hold_form(user, cid, hid, path, status, doctor_html="", verdict=""):
                     f'the override rate. Say why, without patient names or health details.</p>'
                     f'<label for="onote">Reason</label><input type="text" id="onote" name="note" required minlength="10">'
                     f'<p>{btn("dispensed-after-review", "Dispense anyway", "secondary")}</p></form></details>')
-    only = "" if ph else '<p class="muted">A pharmacist records "confirmed", "checked - dispense" and overrides.</p>'
-    waiting = '<p class="muted">Waiting for a call-back.</p>' if status == "waiting" else ""
+    only = "" if ph else f'<div class="status-row">{chip("Pharmacist decides")}{tip("Who decides", "A pharmacist records confirmed, checked - dispense and overrides.")}</div>'
+    waiting = f'<div class="status-row">{chip("Waiting for a call-back", "warn")}</div>' if status == "waiting" else ""
     return (f'<section class="card"><h2>Hold {esc(hid)}</h2>{waiting}{extra}{doctor_html}{form_main}{override}{only}'
             f'{hold_history(hid)}</section>')
 
@@ -1778,6 +1858,16 @@ class Handler(BaseHTTPRequestHandler):
                 raise HttpError(400, "Choose a photo of the prescription first")
             cid = new_case(data, Path(name).suffix.lower() or ".jpg", "upload")
             return self.redirect(f"/case/{cid}")
+        if method == "GET" and len(parts) == 3 and parts[:2] == ["demo", "thumb"] and DEMO and demo_ready():
+            sample = next((x for x in (demo_samples() or {}).get("samples", []) if x.get("key") == parts[2]), None)
+            src = DEMO_DIR / sample["image"] if sample and Path(sample["image"]).name == sample["image"] else None
+            if not src or not src.is_file():
+                raise HttpError(404, "No such sample")
+            img = r.read_bgr(src)
+            cv = r.cv2   # the engine's OpenCV; the server itself stays standard library
+            img = cv.resize(img, (360, int(img.shape[0] * 360 / img.shape[1])), interpolation=cv.INTER_AREA)
+            return self.send(200, cv.imencode(".jpg", img, [cv.IMWRITE_JPEG_QUALITY, 80])[1].tobytes(), "image/jpeg",
+                             cache="private, max-age=3600")
         if method == "POST" and parts == ["demo", "try"] and DEMO and demo_ready():
             key = self.field("key")
             sample = next((s for s in (demo_samples() or {}).get("samples", []) if s.get("key") == key), None)
@@ -1880,7 +1970,7 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and rest == ["ocr"]:
             read = case.get("ocr") or {}
             return self.send_json(200, {"status": read.get("status") or "off", "values": ocr.values(read),
-                                        "panel": ocr_panel(cid, read)})
+                                        "ticks": sorted(field_marks(read)[1]), "panel": ocr_panel(cid, read)})
         if method == "GET" and len(rest) == 2 and rest[0] == "crop" and rest[1].isdigit():
             crops = (case.get("ocr") or {}).get("crops") or []
             if int(rest[1]) >= len(crops):

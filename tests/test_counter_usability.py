@@ -213,7 +213,7 @@ with tempfile.TemporaryDirectory() as t:
           all(f'data-lookup="{k}"' in entry for k in ("drug", "regn", "doctor", "patient"))
           and re.search(r'action="/case/[^"]+/check" data-primary', entry))
     check("  the form says suggestions fill one field only and give names without strengths",
-          "fills only that field" in entry and "name only - type the strength" in entry)
+          "fills only its own field" in entry and "the strength comes from the slip" in entry)
     check("decision page: checked by whom, when, for which patient",
           "Checked by <b>pharmacist-a</b>, today" in page and "patient Sample Patient" in page)
     check("  hold history names who opened it", hid and "Hold opened - <b>pharmacist-a</b>" in page)

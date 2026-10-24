@@ -116,15 +116,18 @@ with tempfile.TemporaryDirectory() as t, sync_playwright() as pw:
         check("  'Metfornin' is shown with its crop, loaded; not filled in",
               "Metfornin 500" in page.inner_text("#ocr") and "Metfornin" not in page.input_value("#drugs")
               and page.eval_on_selector("#ocr img.crop", "i => i.complete && i.naturalWidth > 0"))
-        check("  the change is announced to screen readers", page.get_attribute("#ocr", "role") == "status"
-              and "Filled in just now" in page.inner_text("#ocr"))
+        check("  the fields say where their value came from: 'check' or 'from slip' chips; the typed one has none",
+              page.get_attribute("#ocr", "role") == "status"
+              and page.inner_text('label[for="drugs"] .chip') == "check"
+              and page.inner_text('label[for="regn"] .chip') == "check"
+              and page.locator('label[for="doctor"] .chip').count() == 0)
 
         # ---- sent unchanged: blocked until each reading is ticked against its crop
         page.click("text=Get decision")
         page.wait_for_selector('[data-ocr-state="blocked"]')
         boxes = page.locator('input[name="confirm"]')
         check("sent -> state 'Check blocked', one tick per doubtful reading (name not on file, high-risk, Regn No)",
-              boxes.count() == 3 and "Tick the 3 item(s)" in page.inner_text("#ocr"), boxes.count())
+              boxes.count() == 3 and "3 to tick" in page.inner_text("#ocr"), boxes.count())
         try:
             page.wait_for_function("() => { const is = [...document.querySelectorAll('.issues img.crop')];"
                                    " return is.length === 3 && is.every(i => i.complete && i.naturalWidth > 0) }",
