@@ -2,6 +2,7 @@
 # reports/, which hold a real prescription - can never enter the image.
 *
 !requirements.txt
+!requirements-ocr.txt
 !app/
 app/*
 !app/rxcheck.py

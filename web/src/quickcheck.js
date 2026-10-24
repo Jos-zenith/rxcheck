@@ -18,8 +18,14 @@ export function installQuickCheck() {
     if (!form || form.dataset.sending) return
     const btn = form.querySelector('button[type="submit"]')
     if (btn) {
-      btn.textContent = 'Checking…'
+      btn.textContent = 'Analysing…'
       btn.classList.add('is-sending')
+    }
+    // one action, and it says what it is doing: the page changes when the image check is done
+    const status = form.querySelector('[data-upload-status]')
+    if (status) {
+      const f = input.files && input.files[0]
+      status.textContent = `Uploading ${f ? f.name : 'the file'} and checking the image (about 2 s)…`
     }
     if (form.requestSubmit) form.requestSubmit()
     else form.submit()

@@ -9,7 +9,7 @@ before, was it edited, does the Regn No belong to that doctor, did the clinic si
 > means nothing contradicts the slip, not that a doctor issued it, unless it carries a clinic-signed code that
 > verified. A held slip is not, by itself, proof of fraud. Nothing here is validated at a real counter yet.
 
-Related documents: [docs/ANALYSIS.md](docs/ANALYSIS.md) (technical overview) · [docs/field-validation.md](docs/field-validation.md) (what evidence is still needed, and how to collect it) · [docs/refill-tracking.md](docs/refill-tracking.md) (next: quantities and repeats, designed, not built) · [docs/blog.md](docs/blog.md) (public write-up, draft)
+Related documents: [docs/ANALYSIS.md](docs/ANALYSIS.md) (technical overview) · [docs/field-validation.md](docs/field-validation.md) (what evidence is still needed, and how to collect it) · [docs/refill-tracking.md](docs/refill-tracking.md) (next: quantities and repeats, designed, not built) · [docs/usability-test.md](docs/usability-test.md) (timed counter test with pharmacists, synthetic cases) · [docs/blog.md](docs/blog.md) (public write-up, draft)
 
 ## Why compliance first
 
@@ -300,6 +300,19 @@ This table is checked against `next_step()` by `tests/test_docs.py`, and `tests/
 
 Every RED or AMBER opens a hold. `rxcheck holds` (or **Holds** in the counter app) lists them oldest first. Recording an outcome (confirmed, refused, unreachable, dispensed after review, or retaken) closes or parks the hold. **"Unreachable" keeps the hold waiting**: nothing is auto-approved when the clinic can't be reached, and a closed hold can't be re-opened or re-resolved. In the counter app only a pharmacist can record "confirmed", "checked - dispense" or an override, and a high-risk slip can only be added to the ledger once its hold was resolved that way.
 
+Every hold says who has it and what happens next, all read from the audit trail:
+
+| On the holds page and the hold itself | |
+|---|---|
+| Hold id, when it was opened | as recorded |
+| Why it is held | the decision's finding or reason |
+| **Owner** | whoever opened it, until someone presses *Take this hold* (recorded, shown in the history) |
+| **Next step** | "now: call the clinic on the registry number", or after an unanswered call "call again at 14:30 (1 attempt so far)", marked **OVERDUE** once that time passes (`FOLLOW_UP_MIN`, 2 hours); counter and retake holds: "now, at the counter" |
+| Outcome | holds closed in the last 24 hours are listed with their outcome, who closed it and when |
+
+A clinic that never answers leaves the hold waiting, the customer is told when to come back, and nothing is
+approved on its own.
+
 ### When the prescriber can't be reached: by drug class
 
 Confirmation (a call, or a clinic-signed code) can fail because the doctor doesn't answer. What happens next depends on what is being sold. The drug-risk list sets the class (`data/drug_risk.json`, tiers `ndps`, `high`, `routine`):
@@ -325,9 +338,17 @@ Today there is no shared index, so the first rule is how the tool already works.
 
 `python app/rxcheck.py serve` starts a browser app built around one screen per customer. The server is standard library only, and every page is complete HTML that works without JavaScript. A small Vue bundle served from the same PC adds speed and accessibility on top (see [Counter ergonomics](#counter-ergonomics-and-accessibility)):
 
-1. **Photo in.** Upload a photo or a PDF, or open one that arrived on the pharmacy's WhatsApp (the `--inbox` folder, pre-checked by `watch`). The app runs an image pre-check and decodes any clinic-signed code. A PDF (up to 6 pages) is turned into page images: the image checks (seen before, edited copy) run on **page 1 only**, and the form and decision say so; every page is read for the medicines.
+1. **Photo in.** One action: choosing, dropping or pasting a photo or PDF starts the analysis, and a status line says it is uploading and checking (the *Analyse prescription* button appears only without JavaScript). Upload a photo or a PDF, or open one that arrived on the pharmacy's WhatsApp (the `--inbox` folder, pre-checked by `watch`). The app runs an image pre-check and decodes any clinic-signed code. A PDF (up to 6 pages) is turned into page images: the image checks (seen before, edited copy) run on **page 1 only**, and the form and decision say so; every page is read for the medicines.
 2. **What is being sold.** If OCR is installed, the photo is read in the background while this form is open, and what it finds fills the fields that are still empty (see *Reading the slip*). Staff enter the medicines and strengths, the Regn No, doctor and (optionally) the patient's name, with the Regn No, date and patient prefilled from a verified code. Before the check runs, each entry that is easy to misread must be **corrected or ticked as confirmed against the slip**: a name close to a known brand ("Alprx", did you mean Alprax, HIGH-RISK?), a strength starting with "." (.25 vs 25), a trailing zero (5.0 vs 50), or a high-risk medicine with no strength.
-3. **The decision.** One word (**HOLD** / **CONFIRM FIRST** / **NO CONFLICT FOUND**; GREEN means nothing contradicts the slip, not that it is genuine) and the one sentence that caused it. Then what can be handed over now and what is held, and the one step that settles the rest (retake / check at the counter / call the clinic, with the registry number). The outcome buttons for that step come next, then the evidence: close-ups of changed areas next to the recorded slip, or the slip itself. Every individual finding and note is folded under "All checks".
+3. **The decision.** One word (**HOLD** / **CONFIRM FIRST** / **NO CONFLICT FOUND**; GREEN means nothing contradicts the slip, not that it is genuine) and the one sentence that caused it. Then what can be handed over now and what is held, and the one step that settles the rest (retake / check at the counter / call the clinic, with the registry number). Then **What was checked**, three separate questions so that an edited image, a re-sent image and a high-risk medicine are never read as the same signal:
+
+    | Area | Status shown | Always ends with |
+    |---|---|---|
+    | **Image** | Finding (edited copy, unusable photo) · Seen before (same slip, index match, another pharmacy) · Not verified (similar: a rewrite or a redrawn copy) · Not seen before | *Not known:* e.g. whether a repeat is allowed; that edits since an index-only match cannot be located; that a new slip is not a verified one |
+    | **Prescriber and issuance** | OK · Not verified · Not checked · Finding | *Not known:* who wrote the slip, unless a clinic-signed code verified; that "not verified" is not "invalid" |
+    | **Medicines** | Finding (differs from the record or the signed code) · High-risk (with the tier of each item, and "no override" for NDPS / X) · OK | *Not known:* clinical suitability - no interaction, allergy or dose checks |
+
+    Each area lists its evidence (file metadata only as "supporting"). The hold's owner and next step and its outcome buttons follow, then the evidence images: close-ups of changed areas next to the recorded slip, or the slip itself. Every individual finding and note is folded under "All checks".
 
 ### Reading the slip (OCR): a typing aid, not a check
 
@@ -442,9 +463,9 @@ Limits of a public demo: scheduled backups go to the same disk, so copy them off
 ## Storage, audit, backup and recovery
 
 - **One SQLite file** (`ledger/rxcheck.db`): every write is a transaction, so an entry and its audit record are written together or not at all. `synchronous=FULL` protects against power loss.
-- **Append-only, hash-chained audit trail**: index entries, checks (with the verdict, reason and data-file versions), holds, resolutions, sign-ins, failed sign-ins, staff changes, data imports, backups, restores and audit exports. Database triggers reject edits and deletions. View it with `rxcheck log`, or filter and export it under **Audit log** in the counter app. On the CLI, `RXCHECK_USER` records a *claimed* name; only the counter app authenticates.
+- **Append-only, hash-chained audit trail**: index entries, checks (the image's full SHA-256 fingerprint and the counter case it belongs to; what was entered and what was ticked as confirmed against the slip; every finding and note; the verdict, its reason and the data-file versions), slip readings (what the reader filled in, and how much of it staff kept or changed), holds, who took them, resolutions with their reasons and override notes, sign-ins, failed sign-ins, staff changes, data imports, backups, restores and audit exports. Database triggers reject edits and deletions. View it with `rxcheck log`, or filter and export it under **Audit log** in the counter app. On the CLI, `RXCHECK_USER` records a *claimed* name; only the counter app authenticates.
 - **Tamper evidence.** Each audit record carries a SHA-256 hash of itself and the previous record's hash. Changing, removing or inserting a record breaks every hash after it, and `verify` reports where. Someone with full access to the file could drop the triggers and recompute the whole chain. Copies kept elsewhere catch that: every backup checks that the live trail still contains the previous backup's trail unchanged, and `rxcheck verify --against <backup>` checks against any copy, such as one kept off-site. `verify` prints the current chain head (record number and hash) so it can also be written down. An existing ledger is chained once, on the first start after the upgrade (logged as `chain-start`), and never again: an emptied chain is reported, not rebuilt.
-- **What the trail holds.** Decisions, reasons, image hashes and file names, staff names, and the medicines on index entries: never images and never patient names. The free-text notes on holds are the exception risk, so the counter app asks staff not to type patient names or health details there. The chain covers a hash of each record's detail, not the detail itself. A lawful-erasure procedure that blanks a detail and records the erasure, without breaking the chain, is possible but **not built**. Retention and erasure obligations under the DPDP Act 2023 must be confirmed with a compliance professional.
+- **What the trail holds.** Decisions, reasons, image hashes and file names, staff names, and what was entered or read from the slip (medicines, Regn No, doctor, date): never images and never patient names. Only pharmacists can open the audit log or export it, and each export is itself recorded. The free-text notes on holds are the exception risk, so the counter app asks staff not to type patient names or health details there. The chain covers a hash of each record's detail, not the detail itself. A lawful-erasure procedure that blanks a detail and records the erasure, without breaking the chain, is possible but **not built**. Retention and erasure obligations under the DPDP Act 2023 must be confirmed with a compliance professional.
 - **`rxcheck backup <folder> [--keep N]`** takes a consistent online snapshot of the database, images and features, then verifies the copy. With `serve --backup-dir` this runs every 4 hours, and the counter screen shows the last verified backup or a warning.
 - **`rxcheck verify [folder] [--against backup]`** checks the live ledger or a backup. It covers database integrity, audit protection triggers present, no gaps in the audit sequence, an intact hash chain (and, with `--against`, one that still contains that backup's trail), every entry has its audit record and feature file, and every ledger image is unchanged since it was recorded.
 - **`rxcheck restore <backup>`** verifies the backup first and refuses a damaged one (unless `--force`). It moves the current files aside (never deletes them), restores, re-verifies, and logs the restore.
@@ -518,7 +539,7 @@ python app/rxcheck.py verify [--against D:/offsite/rxcheck-backup-example]   # p
 python app/rxcheck.py restore D:/rxcheck-backups/rxcheck-backup-example
 
 # tests and evaluation
-cd tests && for t in test_robustness test_issuance test_data test_storage test_server test_counter_ux test_eval test_shared test_doctorping test_doctor_screens test_docs test_deploy test_ocr test_browser; do python $t.py || break; done
+cd tests && for t in test_robustness test_issuance test_data test_storage test_server test_counter_ux test_eval test_shared test_doctorping test_doctor_screens test_docs test_deploy test_ocr test_browser test_explain; do python $t.py || break; done
 python eval/build_set.py && python eval/evaluate.py [--no-confirm-new-high-risk] [--complete-registry]
 python eval/ocr/build_ocr_set.py && python eval/ocr/score.py      # slip reading on 50 labelled synthetic slips
 ```
@@ -607,6 +628,7 @@ python eval/ocr/build_ocr_set.py && python eval/ocr/score.py      # slip reading
 | `tests/test_shared.py` | Shared index: keyed signature distances, what the hub stores, clones caught at another pharmacy, stage-2 rejection, minimal disclosure, request authentication, hub-down policy, `sync` late match, scale |
 | `tests/test_ocr.py` | Slip reading: parsing, look-alikes, strengths, ticks, states, PDFs, the report and CSV, the demo's recorded reading |
 | `tests/test_browser.py` | The slip reader in a real browser (installed Edge or Chrome via Playwright): fill, crops, blocked, ticks, decision |
+| `tests/test_explain.py` | The decision screen's three areas: edited / re-sent / dim / rewritten / unusable / new slips, unverified vs invalid Regn No, changed strength or added drug against the record, look-alikes; nothing unverified shown as fact; hold owner, take, follow-up, overdue, closed; the audit record |
 | `tests/test_docs.py` | README decision table must equal `decide()`, and the step table `next_step()`; no conflicting tables elsewhere |
 | `tests/test_deploy.py` | What may enter the image, first start on an empty disk, admin bootstrap, proxy mode, demo banner, lockout |
 | `Dockerfile`, `docker-entrypoint.sh`, `.dockerignore`, `render.yaml`, `requirements.txt` | Container deployment (see "Public demo deployment") |

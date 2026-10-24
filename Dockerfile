@@ -12,13 +12,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     RXCHECK_DEMO=1
 
 WORKDIR /app
-COPY requirements.txt .
+COPY requirements.txt requirements-ocr.txt ./
+# Live slip reading (OCR) is off by default: on a half-CPU instance one reading takes about a minute and needs
+# ~300 MB more memory. On an instance with 1+ CPU and 2 GB:  docker build --build-arg WITH_OCR=1 .
+ARG WITH_OCR=0
 RUN pip install --no-cache-dir -r requirements.txt \
+ && if [ "$WITH_OCR" = "1" ]; then pip install --no-cache-dir -r requirements-ocr.txt \
+      && pip install --no-cache-dir --no-deps rapidocr_onnxruntime==1.4.4; fi \
  && groupadd --system --gid 10001 rxcheck \
  && useradd --system --uid 10001 --gid rxcheck --no-create-home --shell /usr/sbin/nologin rxcheck
 
-# app/ocr.py is imported by the counter app; the OCR engine itself is optional and not installed here
-# (a public demo shows synthetic slips, filled in for the visitor)
+# app/ocr.py is imported by the counter app; the engine itself only with WITH_OCR=1 (above). Without it the
+# public demo's Printed slip sample replays a recorded reading
 COPY app/rxcheck.py app/counter_app.py app/sharedindex.py app/doctorping.py app/ocr.py app/pdfpages.py ./app/
 COPY docker-entrypoint.sh ./
 COPY data/*.json ./data/

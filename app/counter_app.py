@@ -218,7 +218,10 @@ def finalize(cid, img, f):
     """The counter check: decide, record, open a hold for anything held back, and store it on the case."""
     rx_date = r.iso_date(f.get("rx_date")) if f.get("rx_date") else None
     rep = r.run_check(img, f.get("drugs"), f.get("regn") or None, f.get("doctor") or None, rx_date)
-    r.record_check(rep, f.get("drugs"), f.get("regn") or None, f.get("doctor") or None)
+    _, case = load_case(cid)
+    r.record_check(rep, f.get("drugs"), f.get("regn") or None, f.get("doctor") or None,
+                   {"case": cid, "rx_date": f.get("rx_date") or None, "source": case.get("source", "photo"),
+                    "pages": case.get("pages", 1)})
     worst = max(rep["verdicts"].values(), key=r.ORDER.index)
     hold = r.open_hold(rep) if worst != "GREEN" else None
     r.remember_patient(f.get("patient"))
@@ -307,7 +310,8 @@ button.small{min-height:34px;padding:5px 12px;font-size:.9rem}button.big{width:1
 input[type=file]{width:100%;padding:30px 16px;border:2px dashed var(--muted);border-radius:14px;background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}
 input[type=file]::file-selector-button{font:inherit;font-weight:700;margin-right:14px;padding:10px 16px;border-radius:10px;border:2px solid var(--accent);background:var(--card);color:var(--accent);cursor:pointer}
 .drop{display:flex;flex-direction:column;gap:2px;margin:18px 0 8px;font-weight:400}.drop-title{font-weight:700;font-size:1.05rem}
-.hero h1{font-size:1.7rem}.js-only{display:none}html.js .js-only{display:inline}
+.hero h1{font-size:1.7rem}.js-only{display:none}html.js .js-only{display:inline}html.js .nojs-only{display:none}
+.upload-status{font-weight:600;margin:10px 0 0}.upload-status:empty{display:none}
 html.rx-drag input[type=file][data-shortcut=upload]{border-color:var(--accent);border-style:solid;background:var(--card)}
 .verdict{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start;border-radius:16px;padding:22px 24px;margin:0 0 14px;border:2px solid;border-left-width:12px}
 .verdict .icon{display:grid;place-items:center;width:64px;height:64px;border-radius:50%;font-size:2rem;font-weight:900;line-height:1}
@@ -342,10 +346,14 @@ th{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--mu
 img.crop{display:block;max-width:100%;max-height:72px;border:var(--bw) solid var(--line);border-radius:6px;background:#fff}
 .issues img.crop{margin:4px 0 6px 28px;max-width:calc(100% - 28px)}
 .s-quiet{background:var(--bg);color:var(--ink);border-color:var(--line)}.ocr .pill{margin-right:6px}
-.reading-status .pill{margin-right:6px}.demo-about pre{overflow-x:auto;padding:12px;border-radius:10px;background:var(--bg);
+.reading-status .pill{margin-right:6px}
+tr.late td,tr.late th{background:var(--amber-bg)}.hold-meta{margin:0 0 4px}
+.checks .chk{padding:10px 0;border-top:var(--bw) solid var(--line)}.checks .chk:first-of-type{border-top:0;padding-top:0}
+.checks h3{display:flex;gap:10px;align-items:center;margin:0 0 4px}.checks p{margin:4px 0}
+.checks ul.ev{margin:4px 0;color:var(--muted);font-size:.94rem}.checks .unknown{color:var(--muted);font-size:.94rem}.demo-about pre{overflow-x:auto;padding:12px;border-radius:10px;background:var(--bg);
 border:var(--bw) solid var(--line);font-size:.88rem}table.compact td,table.compact th{padding:6px 8px}
 table.compact caption{text-align:left;margin-bottom:6px}
-table.compact tbody th{text-transform:none;letter-spacing:0;font-size:inherit;color:var(--ink);font-weight:600}
+tbody th{text-transform:none;letter-spacing:0;font-size:inherit;color:var(--ink);font-weight:600}
 .demo-about h3{margin:20px 0 8px}.scroll{overflow-x:auto}
 .today{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .today div{padding:10px 12px;border-radius:10px;background:var(--card);border:var(--bw) solid var(--line);color:var(--muted);font-size:.86rem;line-height:1.25}
@@ -565,10 +573,11 @@ def home_page(user):
 <p class="muted">Photo of the paper slip, the image the customer forwarded, or a PDF.</p>{reading_status()}
 <form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
 <label for="image" class="drop"><span class="drop-title">Prescription photo or PDF {kbd("Mod+U")}</span>
-<span class="muted">Choose a file or drop it here<span class="js-only">, or paste it with Ctrl+V - the check starts by
- itself</span></span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
+<span class="muted"><span class="js-only">Choose a file, drop it here or paste it with Ctrl+V: the analysis starts as soon as you
+ do.</span><span class="nojs-only">Choose a file, then press Analyse prescription.</span></span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
  required data-shortcut="upload" aria-keyshortcuts="Control+U Meta+U">
-<p><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Check prescription</button>{kbd("Mod+Enter")}</p></form></section>
+<p class="upload-status" role="status" aria-live="polite" data-upload-status></p>
+<p class="nojs-only"><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Analyse prescription</button>{kbd("Mod+Enter")}</p></form></section>
 <div class="side">{today_panel(user)}{activity_panel(user)}</div></div>{demo_about() if DEMO and demo_ready() else ""}
 <section class="card"><h2>Received on WhatsApp</h2>{inbox}</section>{status}""", user, refresh=60)
 
@@ -807,13 +816,113 @@ def ocr_panel(cid, read, issues=None):
     return f'<div {attrs}>{head}{replay}{unread}{unclear}</div>'
 
 
+# ---------------------------------------------------------------- what was checked, area by area
+# The verdict is one word; these are the separate questions behind it. An edited image, a re-sent image and a
+# high-risk medicine are different signals and are shown apart, each with what is NOT known.
+
+IMAGE_LINES = ("IMAGE UNUSABLE", "COPY of", "SAME SLIP", "VERY SIMILAR", "SEEN BEFORE", "Exact same image file",
+               "SEEN AT ANOTHER PHARMACY", "Differs from the slip at the other", "Not seen before", "Not seen at other",
+               "Shared index")
+FILE_LINES = ("Generator/AI", "C2PA", "No EXIF", "No camera data", "Image file is dated", "Saved at JPEG")
+PRESCRIBER_LINES = ("ISSUANCE CODE FAILED", "Regn No", "Signed ", "NO CLINIC CODE", "Prescription date", "QR code on")
+MEDICINE_LINES = ("High-risk", "Not in drug-risk list", "Drug-risk list", "Confirm entry", "Not in the clinic-signed",
+                  "Differs from record of")
+CHECK_STATUS = {"ok": ("OK", "v-GREEN"), "finding": ("Finding", "v-RED"), "unverified": ("Not verified", "v-AMBER"),
+                "seen": ("Seen before", "v-AMBER"), "new": ("Not seen before", "s-quiet"),
+                "unchecked": ("Not checked", "s-quiet"), "high": ("High-risk", "v-AMBER")}
+
+
+def explain(rep):
+    """[{'area', 'status', 'finding', 'evidence': [...], 'unknown'}] for the image, the prescriber and issuance, and
+    the medicines - from the check's own flags and lines, nothing inferred beyond them."""
+    f, m = rep["flags"], rep.get("match") or {}
+    lines = rep["findings"] + rep["notes"]
+    pick = lambda prefixes: [x for x in lines if x.startswith(prefixes)]   # noqa: E731
+    img, file_notes = pick(IMAGE_LINES), pick(FILE_LINES)
+    if f.get("unusable"):
+        image = ("finding", img[0] if img else "The image could not be used for comparison",
+                 "Nothing about the slip itself was compared. Retake the photo of the paper slip.")
+    elif f.get("edited"):
+        image = ("finding", img[0], "Who changed it, and why. A doctor may correct a slip by hand; then the clinic can "
+                                    "say so. An edit is a reason to confirm, not proof of fraud.")
+    elif m.get("identity") == "similar":
+        image = ("unverified", img[0], "Whether the doctor rewrote the slip or someone redrew a copy: only the clinic can "
+                                       "tell.")
+    elif m.get("identity") == "copy" or (f.get("repeat") and m.get("identity") != "seen" and img):
+        image = ("seen", img[0], "Whether this repeat is allowed: the prescription's repeats and the H1 register decide.")
+    elif m.get("identity") == "seen" or any(x.startswith(("SEEN BEFORE", "SEEN AT ANOTHER", "Exact same")) for x in img):
+        image = ("seen", img[0], "No image was kept for the earlier check, so changes since then cannot be located.")
+    else:
+        image = ("new", "Not seen before at this pharmacy",
+                 "Only slips checked here (and at member pharmacies, if joined) are compared: a slip used anywhere else "
+                 "looks new. A new slip is not a verified one.")
+    image_ev = [x for x in img if x != image[1]] + (["File: " + "; ".join(file_notes) + " (supporting only)"]
+                                                    if file_notes else [])
+
+    iss = (rep.get("issuance") or {}).get("status", "none")
+    pres = f.get("prescriber")
+    if iss == "invalid" or pres == "invalid" or f.get("code_missing"):
+        p_status = "finding"
+    elif iss == "verified" and pres == "valid":
+        p_status = "ok"
+    elif pres == "unknown" and iss != "verified":
+        p_status = "unchecked"
+    elif pres == "valid":
+        p_status = "ok"
+    else:
+        p_status = "unverified"
+    p_lines = pick(PRESCRIBER_LINES)
+    p_find = next((x for x in rep["findings"] if x in p_lines), None) or (
+        "Clinic-signed code verified" if iss == "verified" else rep.get("prescriber_message") or "Regn No not entered")
+    unknown = [] if iss == "verified" else ["Who wrote this slip: a Regn No in the registry proves the doctor exists, "
+                                            "not that they wrote it. Only a clinic-signed code or the doctor's own answer "
+                                            "settles that."]
+    if pres == "unverified":
+        unknown.append("'Not verified' is not 'invalid': the local registry lists only some doctors.")
+    prescriber = (p_status, p_find, " ".join(unknown) or "Nothing: the clinic's signature covers who issued it.")
+    p_ev = [x for x in p_lines + [(rep.get("issuance") or {}).get("message") or ""] if x and x != p_find]
+
+    items = rep.get("items") or []
+    no_override = set(rep.get("fail_closed") or [])
+    med_lines = pick(MEDICINE_LINES)
+    differs = [x for x in rep["findings"] if x.startswith(("Differs from record of", "Not in the clinic-signed"))]
+    tiers = [f'{i["item"]}: ' + ("high-risk, NDPS / Schedule X - no override" if i["item"] in no_override
+                                 else "high-risk" if i["risk"] == "high" else "routine") for i in items]
+    if differs:
+        med = ("finding", differs[0])
+    elif any(i["risk"] == "high" for i in items):
+        med = ("high", "; ".join(tiers))
+    elif items:
+        med = ("ok", "; ".join(tiers))
+    else:
+        med = ("unchecked", "No medicines entered yet")
+    med_unknown = ("Whether the medicine suits this patient: no interaction, allergy or dose checks. Names not on the "
+                   "drug list count as routine unless they look like a controlled medicine.")
+    med_ev = [x for x in differs[1:] + med_lines if not x.startswith("Differs") or x not in differs[:1]]
+    if differs:
+        med_ev = tiers + med_ev
+    return [{"area": "Image", "status": image[0], "finding": image[1], "evidence": image_ev, "unknown": image[2]},
+            {"area": "Prescriber and issuance", "status": prescriber[0], "finding": prescriber[1], "evidence": p_ev,
+             "unknown": prescriber[2]},
+            {"area": "Medicines", "status": med[0], "finding": med[1], "evidence": med_ev, "unknown": med_unknown}]
+
+
+def explain_card(rep):
+    rows = []
+    for a in explain(rep):
+        label, cls = CHECK_STATUS[a["status"]]
+        ev = "".join(f"<li>{esc(plain(x))}</li>" for x in a["evidence"])
+        rows.append(f'<div class="chk" data-check="{esc(a["area"])}" data-status="{a["status"]}"><h3>{esc(a["area"])} '
+                    f'<span class="pill {cls}">{label}</span></h3><p>{esc(plain(a["finding"]))}</p>'
+                    + (f'<ul class="ev">{ev}</ul>' if ev else "")
+                    + f'<p class="unknown"><b>Not known:</b> {esc(a["unknown"])}</p></div>')
+    return (f'<section class="card checks" aria-labelledby="checks-h"><h2 id="checks-h">What was checked</h2>'
+            f'{"".join(rows)}</section>')
+
+
 def decision_page(user, cid, case, error="", notice=""):
     rep = case["final"]
     worst = max(rep["verdicts"].values(), key=r.ORDER.index)
-    iss = rep.get("issuance") or {}
-    iss_line = ("Issuance verified: " + iss["message"] if iss.get("status") == "verified"
-                else "Issuance code FAILED: " + iss.get("message", "") if iss.get("status") == "invalid"
-                else "Issuance not verified - the slip has no clinic-signed code.")
     split = ""
     if rep.get("hand_over") and rep.get("held"):
         split = (f'<div class="split"><p class="give"><b>Hand over now:</b> {esc(", ".join(rep["hand_over"]))}</p>'
@@ -831,7 +940,7 @@ def decision_page(user, cid, case, error="", notice=""):
     patient = (case.get("fields") or {}).get("patient")
     by = (f'<p class="checked-by">Checked by <b>{esc(rep.get("actor"))}</b>, {esc(when(rep.get("checked_at")))}'
           + (f' · patient {esc(patient)}' if patient else "") + '.</p>')
-    parts = [verdict_block(worst, rep["reason"], split + todo + err), by, f'<p class="muted">{esc(iss_line)}</p>']
+    parts = [verdict_block(worst, rep["reason"], split + todo + err), by, explain_card(rep)]
 
     # hold actions come before the evidence: they are what the pharmacist does next
     hid = case.get("hold")
@@ -840,6 +949,7 @@ def decision_page(user, cid, case, error="", notice=""):
         status = row["status"] if row else "closed"
         if status != "closed":
             path = rep.get("path") or "call"
+            parts.append(hold_meta(user, cid, hid, status, path))
             parts.append(hold_form(user, cid, hid, path, status,
                                    doctor_section(user, cid, case, hid, notice) if path == "call" else "", worst))
         else:
@@ -968,16 +1078,75 @@ def doctor_notice(res):
     return DOCTOR_NOTICES.get(res["status"], "Something went wrong - call the clinic on the registry number.")
 
 
+FOLLOW_UP_MIN = 120   # an unanswered call: try again after this long (the hold stays 'waiting', never auto-approved)
+
+
+def hold_state(hid):
+    """Owner, attempts, next follow-up and outcome of a hold - all from the audit trail."""
+    rows = r.db().execute("SELECT at, actor, action, detail FROM audit WHERE ref = ? AND action IN "
+                          "('hold', 'hold-assign', 'resolve', 'doctor-ask', 'doctor-receipt') ORDER BY seq",
+                          (hid,)).fetchall()
+    st = {"opened_by": None, "owner": None, "tries": 0, "last_try": None, "outcome": None, "closed_by": None,
+          "closed_at": None, "doctor": None}
+    for x in rows:
+        d = detail_of(x)
+        if x["action"] == "hold":
+            st["opened_by"] = st["owner"] = x["actor"]
+        elif x["action"] == "hold-assign":
+            st["owner"] = x["actor"]
+        elif x["action"] == "doctor-ask":
+            st["tries"] += 1
+            st["last_try"] = x["at"]
+        elif x["action"] == "doctor-receipt":
+            st["doctor"] = d.get("decision")
+        elif x["action"] == "resolve":
+            if d.get("outcome") == "unreachable":
+                st["tries"] += 1
+                st["last_try"] = x["at"]
+            else:
+                st["outcome"], st["closed_by"], st["closed_at"] = d.get("outcome"), x["actor"], x["at"]
+    return st
+
+
+def follow_up(st, status, path):
+    """(when, text): what happens next with this hold, and by when."""
+    if status == "closed":
+        return None, ""
+    if path != "call":
+        return None, "now, at the counter (" + r.PATH_LABELS.get(path, path).lower() + ")"
+    if not st["last_try"]:
+        return None, "now: call the clinic on the registry number"
+    due = datetime.fromisoformat(st["last_try"]) + timedelta(minutes=FOLLOW_UP_MIN)
+    late = datetime.now() >= due
+    return due, (f"OVERDUE since {due:%H:%M}" if late else f"call again at {due:%H:%M}") + \
+        f" ({st['tries']} attempt{'s' if st['tries'] != 1 else ''} so far)"
+
+
+def hold_meta(user, cid, hid, status, path):
+    """Owner, attempts and the next follow-up, with a button to take the hold."""
+    st = hold_state(hid)
+    _, nxt = follow_up(st, status, path)
+    take = ("" if st["owner"] == user["name"] or status == "closed" else
+            f'<form class="inline" method="post" action="/hold/{hid}/take">{csrf_field(user)}'
+            f'<input type="hidden" name="case" value="{esc(cid)}">'
+            f'<button type="submit" class="secondary small">Take this hold</button></form>')
+    return (f'<p class="hold-meta">Hold <b>{esc(hid)}</b> · owner <b>{esc(st["owner"] or "-")}</b>'
+            + (f' · next: <b>{esc(nxt)}</b>' if nxt else "") + f' {take}</p>'
+            '<p class="hint">If the clinic does not answer, record "No answer": the hold waits, the customer is told '
+            'when to come back, and nothing is approved on its own.</p>')
+
+
 def hold_history(hid):
     """Who opened the hold and who recorded each outcome, oldest first - from the audit trail."""
-    rows = r.db().execute("SELECT at, actor, action, detail FROM audit WHERE ref = ? AND action IN ('hold', 'resolve', 'doctor-ask', "
-                          "'doctor-receipt') "
-                          "ORDER BY seq", (hid,)).fetchall()
+    rows = r.db().execute("SELECT at, actor, action, detail FROM audit WHERE ref = ? AND action IN ('hold', 'hold-assign', "
+                          "'resolve', 'doctor-ask', 'doctor-receipt') ORDER BY seq", (hid,)).fetchall()
     items = []
     for x in rows:
         d = detail_of(x)
         if x["action"] == "hold":
             what = "Hold opened"
+        elif x["action"] == "hold-assign":
+            what = "Took the hold"
         elif x["action"] == "doctor-ask":
             what = f"Doctor asked (message to {d.get('contact') or 'the registered phone'})"
         elif x["action"] == "doctor-receipt":
@@ -1055,27 +1224,53 @@ def hold_form(user, cid, hid, path, status, doctor_html="", verdict=""):
             f'{hold_history(hid)}</section>')
 
 
+def hold_reason(h, cid):
+    findings = json.loads(h["findings"])
+    why = findings[0] if findings else ""
+    if not why and CASE_ID.match(cid):   # a new-slip hold has no finding, only the decision's reason
+        try:
+            why = (load_case(cid)[1].get("final") or {}).get("reason") or ""
+        except Exception:
+            why = ""
+    return why
+
+
 def holds_page(user):
-    rows = r.db().execute("SELECT * FROM holds WHERE status != 'closed' ORDER BY created").fetchall()
+    """Open holds, oldest first, each with who owns it, what was tried and what happens next; then the holds closed
+    in the last day with their outcome."""
     out = []
-    for h in rows:
+    for h in r.db().execute("SELECT * FROM holds WHERE status != 'closed' ORDER BY created").fetchall():
         worst = max(json.loads(h["verdicts"]).values(), key=r.ORDER.index)
-        findings = json.loads(h["findings"])
         cid = Path(h["image"]).stem
         link = f'<a href="/case/{cid}">open</a>' if CASE_ID.match(cid) else esc(Path(h["image"]).name)
-        age = int((datetime.now() - datetime.fromisoformat(h["created"])).total_seconds() // 60)
-        why = findings[0] if findings else ""
-        if not why and CASE_ID.match(cid):   # a new-slip hold has no finding, only the decision's reason
-            try:
-                why = (load_case(cid)[1].get("final") or {}).get("reason") or ""
-            except Exception:
-                why = ""
-        waited = f"{age} min" if age < 120 else f"{age // 60} h"
-        out.append(f'<tr><td>{waited}</td><td><span class="pill v-{worst}">{worst}</span></td><td>{esc(h["status"])}</td>'
-                   f'<td>{esc(plain(why))}</td><td>{link}</td></tr>')
-    body = ("<table><tr><th>Waiting</th><th>Verdict</th><th>Status</th><th>Reason</th><th></th></tr>" + "".join(out)
-            + "</table>") if out else '<p class="muted">No open holds.</p>'
-    return page("Holds", f'<section class="card"><h1>Open holds (oldest first)</h1>{body}</section>{activity_panel(user)}'
+        st = hold_state(h["id"])
+        due, nxt = follow_up(st, h["status"], r.hold_info(h["id"])[0] or "call")
+        late = due is not None and datetime.now() >= due
+        out.append(f'<tr{" class=late" if late else ""}><th scope="row">{esc(h["id"])}<br><span class="muted">'
+                   f'{esc(when(h["created"]))}</span></th><td><span class="pill v-{worst}">{worst}</span> '
+                   f'{esc(plain(hold_reason(h, cid)))}</td><td>{esc(st["owner"] or "-")}</td>'
+                   f'<td>{esc(nxt)}</td><td>{link}</td></tr>')
+    open_t = ('<table><thead><tr><th scope="col">Hold, opened</th><th scope="col">Why it is held</th>'
+              '<th scope="col">Owner</th><th scope="col">Next step</th><th scope="col"></th></tr></thead><tbody>'
+              + "".join(out) + "</tbody></table>") if out else '<p class="muted">No open holds.</p>'
+    since = (datetime.now() - timedelta(days=1)).isoformat(timespec="seconds")
+    done = []
+    for h in r.db().execute("SELECT * FROM holds WHERE status = 'closed' ORDER BY created DESC").fetchall():
+        st = hold_state(h["id"])
+        if not st["closed_at"] or st["closed_at"] < since:
+            continue
+        cid = Path(h["image"]).stem
+        done.append(f'<tr><th scope="row">{esc(h["id"])}</th><td>{esc(plain(hold_reason(h, cid)))}</td>'
+                    f'<td>{esc(OUTCOME_LABELS.get(st["outcome"], st["outcome"] or ""))}</td>'
+                    f'<td>{esc(st["closed_by"] or "")}, {esc(when(st["closed_at"]))}</td>'
+                    f'<td>{f"<a href=/case/{cid}>open</a>" if CASE_ID.match(cid) else ""}</td></tr>')
+    closed_t = ('<h2>Closed in the last 24 hours</h2><table><thead><tr><th scope="col">Hold</th><th scope="col">Why it was '
+                'held</th><th scope="col">Outcome</th><th scope="col">By, when</th><th scope="col"></th></tr></thead>'
+                '<tbody>' + "".join(done) + '</tbody></table>') if done else ""
+    return page("Holds", f'<section class="card"><h1>Open holds (oldest first)</h1>'
+                         f'<p class="muted">An unanswered call is tried again after {FOLLOW_UP_MIN // 60} hours; overdue '
+                         f'holds are marked. Anyone can take a hold; the history shows who did what.</p>{open_t}</section>'
+                         f'{f"<section class=card>{closed_t}</section>" if closed_t else ""}{activity_panel(user)}'
                          f'<p><a href="/" data-shortcut="next">Back to the counter</a></p>', user, refresh=60)
 
 
@@ -1083,7 +1278,7 @@ def holds_page(user):
 
 ACTION_LABELS = {
     "check": "Check", "entry-confirmed": "Entry confirmed against the slip", "ocr-use": "Photo reading used",
-    "hold": "Hold opened",
+    "hold": "Hold opened", "hold-assign": "Hold taken",
     "resolve": "Hold outcome", "doctor-ask": "Doctor asked", "doctor-receipt": "Doctor's answer", "login": "Signed in", "login-failed": "Wrong PIN", "login-locked": "Sign-in locked",
     "add": "Recorded in the ledger", "index": "Indexed (no image)", "index-update": "Index updated",
     "migrate": "Migrated", "staff-add": "Staff added", "staff-disable": "Staff disabled", "staff-pin": "PIN changed",
@@ -1091,7 +1286,7 @@ ACTION_LABELS = {
 }
 AUDIT_GROUPS = {   # value -> (label, actions); "overrides" is a filter on resolve rows
     "checks": ("Checks and entry confirmations", ("check", "entry-confirmed", "ocr-use")),
-    "holds": ("Holds and their outcomes", ("hold", "resolve", "doctor-ask", "doctor-receipt")),
+    "holds": ("Holds and their outcomes", ("hold", "hold-assign", "resolve", "doctor-ask", "doctor-receipt")),
     "overrides": ("Overrides only", ("resolve",)),
     "signin": ("Sign-ins and wrong PINs", ("login", "login-failed", "login-locked")),
     "ledger": ("Ledger and index records", ("add", "index", "index-update", "migrate")),
@@ -1616,6 +1811,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.case_route(method, parts[1], parts[2:])
         if len(parts) == 3 and parts[0] == "hold" and parts[2] == "resolve" and method == "POST":
             return self.resolve(parts[1])
+        if len(parts) == 3 and parts[0] == "hold" and parts[2] == "take" and method == "POST":
+            row = r.db().execute("SELECT status FROM holds WHERE id = ?", (parts[1],)).fetchone()
+            if not row:
+                raise HttpError(404, "No such hold")
+            if row["status"] == "closed":
+                raise HttpError(409, "This hold is already closed")
+            con = r.db()
+            with con:
+                r.audit(con, "hold-assign", parts[1], {"owner": u["name"]})
+            back = self.field("case")
+            return self.redirect(f"/case/{back}" if CASE_ID.match(back or "") else "/holds")
         if len(parts) == 4 and parts[0] == "hold" and parts[2] == "doctor" and method == "POST":
             return self.doctor(parts[1], parts[3])
         raise HttpError(404, "Page not found")
@@ -1712,8 +1918,8 @@ class Handler(BaseHTTPRequestHandler):
                     if issues:
                         r.audit(con, "entry-confirmed", cid, {"issues": [{k: v for k, v in i.items() if k != "crop"}
                                                                          for i in issues]})
-                    if use:
-                        r.audit(con, "ocr-use", cid, use)
+                    if use:   # what the reader filled in (no patient), beside the counts: what was read vs sent
+                        r.audit(con, "ocr-use", cid, {**use, "read": ocr.values(case.get("ocr"))})
             finalize(cid, img, f)
             return self.redirect(f"/case/{cid}")
         if method == "POST" and rest == ["retake"]:

@@ -1906,8 +1906,10 @@ def public(rep):
     return {k: v for k, v in rep.items() if not k.startswith("_")}
 
 
-def record_check(rep, drugs=None, regn=None, doctor=None):
-    """Index the slip (unless unusable) and write the decision to the audit trail."""
+def record_check(rep, drugs=None, regn=None, doctor=None, context=None):
+    """Index the slip (unless unusable) and write the decision to the audit trail: the image's full fingerprint,
+    what was entered (never the patient), every finding and note, the verdict and its reason. context: what the
+    caller knows besides (the counter's case id, the date entered, photo or PDF)."""
     worst = max(rep["verdicts"].values(), key=ORDER.index)
     if not rep["unusable"]:
         eid = record_seen(rep["image"], rep["_features"], rep["_dens"], rep["sha256"], drugs, regn, doctor, worst)
@@ -1921,8 +1923,12 @@ def record_check(rep, drugs=None, regn=None, doctor=None):
             f = iss["fields"]
             con.execute("INSERT OR IGNORE INTO issuance_codes (regn_no, serial, first_seen, sha256) VALUES (?, ?, ?, ?)",
                         (f["regn"], f["serial"], now(), rep["sha256"]))
-        audit(con, "check", rep["sha256"][:16], {"image": Path(rep["image"]).name, "verdicts": rep["verdicts"],
+        audit(con, "check", rep["sha256"][:16], {"image": Path(rep["image"]).name, "sha256": rep["sha256"],
+                                                  "entered": {"drugs": drugs, "regn": regn, "doctor": doctor},
+                                                  **(context or {}),
+                                                  "verdicts": rep["verdicts"],
                                                   "reason": rep.get("reason"), "findings": rep["findings"],
+                                                  "notes": rep["notes"],
                                                   "path": rep.get("path"), "held": rep.get("held"),
                                                   "hand_over": rep.get("hand_over"),
                                                   "issuance": iss.get("status"), "data": rep.get("data")})
