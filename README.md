@@ -41,7 +41,7 @@ What a pharmacist can act on are facts a forger doesn't control:
 |---|---|
 | **Users** | Retail pharmacists and counter staff, initially single pharmacies in Tier-2 cities, with one or more billing counters |
 | **In scope** | Re-use and edit detection; authenticated doctor confirmation (simulated service); hash-only shared index across pharmacies (simulated network); no-image index of every checked slip; prescriber registry check; clinic-signed issuance codes; drug-risk policy; consistency of requested drugs with the matched record or signed code; confirmation of ambiguous medicine entries; reading the slip photo to fill in the form (optional, offline OCR); pre-checking images as they arrive; counter app with staff sign-in; hold-and-escalate queue; audited data imports; verify, backup and restore; offline operation |
-| **Out of scope (now)** | Proving issuance for slips without a signed code (needs a call to the clinic); reading handwriting reliably; a production shared-index service (HTTPS, member authentication, key rotation); e-prescription PDF and platform QR verification; clinical appropriateness |
+| **Out of scope (now)** | Proving issuance for slips without a signed code (needs a call to the clinic); reading handwriting reliably; a production shared-index service (HTTPS, member authentication, key rotation); verifying e-prescription platforms (a PDF is accepted and read, but its text proves no more than a photo); edit detection beyond page 1 of a PDF; clinical appropriateness |
 
 ## How it works
 
@@ -265,7 +265,7 @@ Today there is no shared index, so the first rule is how the tool already works.
 
 `python app/rxcheck.py serve` starts a browser app built around one screen per customer. The server is standard library only, and every page is complete HTML that works without JavaScript. A small Vue bundle served from the same PC adds speed and accessibility on top (see [Counter ergonomics](#counter-ergonomics-and-accessibility)):
 
-1. **Photo in.** Upload a photo, or open one that arrived on the pharmacy's WhatsApp (the `--inbox` folder, pre-checked by `watch`). The app runs an image pre-check and decodes any clinic-signed code.
+1. **Photo in.** Upload a photo or a PDF, or open one that arrived on the pharmacy's WhatsApp (the `--inbox` folder, pre-checked by `watch`). The app runs an image pre-check and decodes any clinic-signed code. A PDF (up to 6 pages) is turned into page images: the image checks (seen before, edited copy) run on **page 1 only**, and the form and decision say so; every page is read for the medicines.
 2. **What is being sold.** If OCR is installed, the photo is read in the background while this form is open, and what it finds fills the fields that are still empty (see *Reading the slip*). Staff enter the medicines and strengths, the Regn No, doctor and (optionally) the patient's name, with the Regn No, date and patient prefilled from a verified code. Before the check runs, each entry that is easy to misread must be **corrected or ticked as confirmed against the slip**: a name close to a known brand ("Alprx", did you mean Alprax, HIGH-RISK?), a strength starting with "." (.25 vs 25), a trailing zero (5.0 vs 50), or a high-risk medicine with no strength.
 3. **The decision.** One word (**HOLD** / **CONFIRM FIRST** / **NO CONFLICT FOUND**; GREEN means nothing contradicts the slip, not that it is genuine) and the one sentence that caused it. Then what can be handed over now and what is held, and the one step that settles the rest (retake / check at the counter / call the clinic, with the registry number). The outcome buttons for that step come next, then the evidence: close-ups of changed areas next to the recorded slip, or the slip itself. Every individual finding and note is folded under "All checks".
 
@@ -277,7 +277,7 @@ What it does with each reading:
 
 | Reading | Filled in? | Tick needed when sent unchanged? |
 |---|---|---|
-| Medicine whose whole name is on file (drug list, or entered at this counter before), read with confidence 0.80 or more | Yes | Only if high-risk, without a strength, or read below 0.95 |
+| Medicine whose whole name is on file (drug list, or entered at this counter before), read with confidence 0.80 or more | Yes | If high-risk, without a strength, read below 0.95, or **at a strength not dispensed here before for that medicine** (a confident reading can still drop a digit: 500 → 50). Strengths from a PDF's text layer are exact and are exempt |
 | Medicine name not on file, read with 0.95 or more | Yes | **Always** ("not a name this pharmacy has on file") |
 | Medicine name not on file below 0.95, or anything below 0.80 | **No.** Shown with the cut-out of the slip it came from, for staff to type | - |
 | Regn No | Yes | **Always**: a misread digit can name another doctor, which is RED |
@@ -288,6 +288,7 @@ Three rules come from how OCR fails:
 - **A reading is never swapped for the nearest known name.** "Metfornin" is shown as read, not offered as Metformin or Metoprolol: look-alike names one tap apart are a known cause of dispensing errors.
 - **Confidence alone is weak evidence.** On the synthetic demo handwriting the engine reported 0.9 for nonsense, so a name must be on file, or read very clearly *and* ticked.
 - **Whole names only.** "Pan D" is not the known "Pan".
+- **Whole numbers only.** OCR drops spaces ("Telma40mgafterfood", "TabZolfresh"). The strength is always the whole number, and directions after it (1-0-1, x 5 days, after food, TDS) are removed before the name and strength are read, so "Becosules 1-1-1" is not "Becosules 1". The labelled set found both bugs: the first version read "Telma 40" as "Telma 4".
 
 Each item that needs a tick appears in the existing "check these against the slip" box, next to the cut-out of the slip it was read from. The audit trail records which photo readings were ticked, and for every check an `ocr-use` line with counts only: values offered, kept as read, corrected, and left for staff to type. The 0.80 / 0.95 thresholds are **placeholders**: they are not measured on real slips, and the shadow pilot should set them from those counts.
 
@@ -300,6 +301,40 @@ python app/ocr.py slip.jpg                          # what it reads from one pho
 ```
 
 `RXCHECK_OCR=off` switches it off. It is not installed in the container image, so the public demo does not read photos (its sample slips are filled in for the visitor).
+
+**PDFs.** A page with a text layer (printed from clinic software) is read from that text, so it needs no OCR engine and its readings are reported in their own band, "PDF text". A scanned page is read by OCR like a photo. Locked, unreadable, empty or over-long PDFs (more than 6 pages) are refused with a message staff can act on.
+
+**What the form shows.** One state at the top of the form, always, so staff know what the fields hold:
+
+| State | When | What staff do |
+|---|---|---|
+| **Reading** | The slip is being read (5-15 s a page) | Start typing; nothing typed is replaced |
+| **Ready** | Read; nothing filled in needs a tick | Check the values against the slip, then *Get decision* |
+| **Needs confirmation (n)** | Read; n filled-in values will need a tick if sent unchanged | Check them; the ticks are asked on *Get decision* |
+| **Check blocked** | Sent, but some entries still need a tick (from the reading or the entry checks) | Tick each against its cut-out, or correct it |
+| **OCR disabled** | Switched off, not installed, or a demo sample - and the panel says which | Type the medicines |
+| **Could not read** | The engine failed on this slip | Type the medicines |
+
+**Pilot figures.** *Audit log → Photo reading report* (pharmacists) shows, for the last 7-90 days, how many checks had the slip read, how many were sent while still reading or could not be read, the median reading time, and a table per field and confidence band: values filled in, **kept as read (acceptance)**, **changed by staff (correction)**, ticks needed, and unclear readings that staff then typed exactly as read. That table is what the 0.80 / 0.95 thresholds should be set from; rows with fewer than 30 readings are marked as too few. *Download one row per reading as CSV* exports the same, without any slip text; the export is recorded in the audit trail.
+
+**Measured on the labelled set.** `python eval/ocr/build_ocr_set.py` generates 50 synthetic slips into `samples/ocr/` (git-ignored): 30 printed, 5 in poor light (dim, side shadow, glare, angled, forwarded), 10 *handwriting-style fonts* and 5 multi-page PDFs (3 with a text layer, 2 scanned). `python eval/ocr/score.py` reads each once and scores it for a new counter (only the drug list on file) and an established one (every medicine entered before). Its key figure is **silent errors**: values filled in wrong that need no tick.
+
+Results on this PC (2026-10-24, synthetic slips, 180 medicines):
+
+| Kind | Slips | Medicines filled in right: new counter / established | Wrong, needing a tick | **Silent errors** | Regn No, doctor, date right | Ticks per slip (established) | Seconds per slip |
+|---|---|---|---|---|---|---|---|
+| Printed | 30 | 84% / 98% | 2 | **0** | 93% | 2.6 | 6.7 |
+| Poor lighting | 5 | 57% / 86% | 2 | **0** | 87% | 3.4 | 7.8 |
+| Handwriting-style font | 10 | 54% / 81% | 2 | **0** | 93% | 2.5 | 9.1 |
+| PDF with text layer | 3 | 100% / 100% | 0 | **0** | 100% | 3.0 | 0.3 |
+| Scanned PDF | 2 | 69% / 88% | 2 | **0** | 50% | 5.0 | 19.3 |
+| All | 50 | 78% / 94% | 8 | **0** | 91% | 2.8 | 7.4 |
+
+Every medicine ended up filled in right, shown as unclear, filled in wrong *with a tick asked*, or missed (11 of 180, left for staff to type). The first scoring run found **10 silent errors** on an established counter (strengths cut short: "Telma 40" read as "Telma 4", "Dolo 650" as "Dolo 65"; doses read as strengths); the parser fixes and the strength-history rule above brought that to zero on this set. A real counter will see misreads this set does not contain, which is why the tick rules do not rely on the parser being right.
+
+The handwriting-style fonts are far tidier than a doctor's pen, so their row is **not** a handwriting score. Real slips from the consented field study go in `eval/field/ocr/` (git-ignored) with a `labels.json` shaped like `eval/ocr/labels-template.json`; the scorer then reports them as `real-...` rows.
+
+**Browser test.** `tests/test_browser.py` drives the installed Edge or Chrome (Playwright, no browser download): sign in, choose a photo, see *Reading*, type a field, see the others fill in without it, the look-alike shown with its loaded cut-out, *Check blocked* with three ticks, the browser refusing to send without them, the decision after them; then a PDF, and *OCR disabled*. It is skipped when Playwright (`pip install playwright==1.64.1`) or a browser is missing.
 
 Each person signs in with their own PIN (`rxcheck staff add NAME --role pharmacist|staff`), so the audit trail records who checked and who approved. Sessions end after 30 idle minutes or one 10-hour shift. Five wrong PINs lock that name for 10 minutes. Disabling a staff member signs them out at once. Every form carries an anti-forgery token, and the pages forbid framing and external content.
 

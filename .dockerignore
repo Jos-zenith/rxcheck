@@ -9,6 +9,7 @@ app/*
 !app/sharedindex.py
 !app/doctorping.py
 !app/ocr.py
+!app/pdfpages.py
 !static/app.js
 !static/app.css
 !docker-entrypoint.sh

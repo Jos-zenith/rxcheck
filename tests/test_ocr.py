@@ -7,6 +7,7 @@ reads a printed synthetic slip with the real engine when it is installed, and is
 """
 import http.client
 import json
+import os
 import re
 import secrets
 import sys
@@ -20,6 +21,7 @@ from urllib.parse import urlencode
 import cv2
 
 from scenarios import r, other_slip
+import make_pdf
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "app"))
@@ -42,8 +44,11 @@ def line(text, conf=0.98, y=0):
     return {"text": text, "conf": conf, "box": (40, y, 600, y + 40)}
 
 
-def parse(lines, known=("dolo", "pan", "alprax", "metformin", "metoprolol"), high=("alprax",)):
-    return ocr.parse(lines, set(known), lambda t: t.split()[0].lower() in high, TODAY)
+SEEN = {"dolo": {"650"}, "pan": {"40"}, "alprax": {"0.25"}, "metformin": {"500"}}   # dispensed here before
+
+
+def parse(lines, known=("dolo", "pan", "alprax", "metformin", "metoprolol"), high=("alprax",), strengths=SEEN):
+    return ocr.parse(lines, set(known), lambda t: t.split()[0].lower() in high, TODAY, strengths)
 
 
 # ---- what counts as a medicine line, and what is filled in
@@ -82,6 +87,20 @@ check("a known name read with middling confidence is filled in with a tick",
 check("every shown or filled reading points at its part of the slip",
       all(0 <= x["crop"] < len(res["crops"]) for x in res["drugs"] + res["unclear"]))
 
+# ---- the strength: whole numbers only, directions stripped, a strength new to this counter ticked
+lines = ["2.Tab.Telma40mgafterfood", "3.TabAtorva10mgTDS", "TabZolfresh 10 mgafter food", "2. Tab Thyronorm 50 mcgSOS",
+         "2.Cap Becosules 1-1-1", "Cap. Becosules x 5 days", "1.Tab.Ultracetafterfood", "4.Syp Ascoril LS 5 ml 1-0-1"]
+got = [ocr.medicine({"text": t, "conf": 0.99, "box": (0, 0, 1, 1)}, set())["text"] for t in lines]
+check("glued text and directions: the whole strength, never a dose or a duration",
+      got == ["Telma 40", "Atorva 10", "Zolfresh 10", "Thyronorm 50 mcg", "Becosules", "Becosules", "Ultracet",
+              "Ascoril LS 5 ml"], got)
+res = parse([line("Tab. Dolo 65 mg"), line("Tab. Dolo 650 mg", y=100)])
+why = [(d["text"], d["confirm"], d["why"]) for d in res["drugs"]]
+check("a clear reading of a known name with a strength not dispensed here (650 -> 65) needs a tick",
+      why == [("Dolo 65", True, "strength not dispensed here before for this medicine"), ("Dolo 650", False, "")], why)
+check("  with no history of strengths given, every OCR strength needs a tick",
+      all(d["confirm"] for d in parse([line("Tab. Dolo 650 mg")], strengths=None)["drugs"]))
+
 # ---- dates and prescribers that cannot be pinned down are left empty
 check("future date, impossible date, or two different dates -> no date",
       "rx_date" not in parse([line("Date: 30/10/2026")]) and "rx_date" not in parse([line("Date: 31/02/2026")])
@@ -101,12 +120,32 @@ check("sent unchanged -> the high-risk medicine and the Regn No must be ticked",
       [x["item"] for x in c] == ["Alprax 0.25", "73816"], c)
 c = ocr.confirmations(res, {"drugs": "Dolo 650, Alprax 0.5", "regn": "73818"})
 check("corrected by staff -> nothing from the photo left to tick (the entry checks still apply)", c == [], c)
-u = ocr.usage(res, {"drugs": "Dolo 650, Alprax 0.5", "regn": "73816"})
-check("usage: counts only, no content", u == {"offered": 3, "kept": 2, "changed": 1, "unclear": 1, "ms": 1200,
-                                             "engine": "test"}, u)
-check("nothing pending/failed/off fills or asks anything",
-      all(ocr.values(x) == {} and ocr.confirmations(x, {"regn": "1"}) == [] and ocr.usage(x, {}) is None
-          for x in (None, {"status": "pending"}, {"status": "failed", "message": "x"})))
+u = ocr.usage(res, {"drugs": "Dolo 650, Alprax 0.5, Mystery 5", "regn": "73816"})
+check("usage: counts, plus per reading only field, band and flags - no text", u["offered"] == 3 and u["kept"] == 2
+      and u["changed"] == 1 and u["unclear"] == 1 and u["readings"] == [
+          {"field": "medicine", "band": "0.95+", "known": True, "high": False, "filled": True, "tick": False, "kept": True},
+          {"field": "medicine", "band": "0.95+", "known": True, "high": True, "filled": True, "tick": True, "kept": False},
+          {"field": "medicine", "band": "<0.80", "known": False, "high": False, "filled": False, "tick": False, "kept": True},
+          {"field": "regn", "band": "0.95+", "known": None, "high": False, "filled": True, "tick": True, "kept": True}]
+      and "Dolo" not in json.dumps(u) and "73816" not in json.dumps(u), u)
+check("nothing pending/failed/off fills or asks anything; pending and failed are still counted",
+      all(ocr.values(x) == {} and ocr.confirmations(x, {"regn": "1"}) == [] for x in
+          (None, {"status": "off"}, {"status": "pending"}, {"status": "failed", "message": "x"}))
+      and ocr.usage(None, {}) is None and ocr.usage({"status": "off", "why": "demo"}, {}) is None
+      and ocr.usage({"status": "pending"}, {})["status"] == "pending"
+      and ocr.usage({"status": "failed", "ms": 5}, {})["status"] == "failed")
+rep = ocr.report([u, ocr.usage({"status": "pending"}, {}), ocr.usage({"status": "failed"}, {}),
+                  dict(u, ms=3000)])
+med = next(t for t in rep["table"] if t["field"] == "medicine" and t["band"] == "0.95+")
+low = next(t for t in rep["table"] if t["field"] == "medicine" and t["band"] == "<0.80")
+check("report: acceptance and correction per field and band; unclear readings staff typed as read",
+      rep["checks"] == 4 and rep["done"] == 2 and rep["pending"] == 1 and rep["failed"] == 1
+      and rep["median_ms"] == 3000 and med == {"field": "medicine", "band": "0.95+", "filled": 4, "kept": 2,
+                                               "ticked": 2, "unclear": 0, "unclear_right": 0}
+      and low["unclear"] == 2 and low["unclear_right"] == 2 and rep["table"][0]["field"] == "medicine", rep)
+check("bands: PDF text kept apart from OCR confidence",
+      [ocr.band(c, s) for c, s in ((1.0, "text"), (0.97, "ocr"), (0.92, "ocr"), (0.85, "ocr"), (0.5, "ocr"))]
+      == ["PDF text", "0.95+", "0.90-0.95", "0.80-0.90", "<0.80"])
 
 
 # ---------------------------------------------------------------- the counter, with a stand-in engine
@@ -138,11 +177,11 @@ class Client:
         return self.req("POST", path, urlencode(dict(fields, csrf=self.csrf), doseq=True),
                         "application/x-www-form-urlencoded")
 
-    def upload(self, img_bytes):
+    def upload(self, img_bytes, name="slip.jpg", ctype="image/jpeg"):
         b = "----rx" + secrets.token_hex(8)
         body = (f"--{b}\r\nContent-Disposition: form-data; name=\"csrf\"\r\n\r\n{self.csrf}\r\n"
-                f"--{b}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"slip.jpg\"\r\n"
-                f"Content-Type: image/jpeg\r\n\r\n").encode() + img_bytes + f"\r\n--{b}--\r\n".encode()
+                f"--{b}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{name}\"\r\n"
+                f"Content-Type: {ctype}\r\n\r\n").encode() + img_bytes + f"\r\n--{b}--\r\n".encode()
         return self.req("POST", "/upload", body, f"multipart/form-data; boundary={b}")
 
 
@@ -162,19 +201,20 @@ SEGMENTS = [((40, 40, 700, 80), "Dr. Asha Example, MBBS", 0.99), ((40, 90, 400, 
             ((500, 130, 760, 160), f"Date: {day}", 0.99), ((60, 300, 500, 340), "1. Tab. Dolo 650 mg 1-0-1", 0.99),
             ((60, 360, 500, 400), "2. Tab. Alprax 0.25 mg 0-0-1", 0.98),
             ((60, 420, 500, 460), "3. Tab. Metfornin 500", 0.91)]
-calls = {"n": 0, "fail": False}
+calls = {"n": 0, "fail": False, "delay": 0.3, "segments": None}
 
 
 def fake_segments(img):
     calls["n"] += 1
-    time.sleep(0.3)              # long enough for the form to be served while reading
+    time.sleep(calls["delay"])   # long enough for the form to be served while reading
     if calls["fail"]:
         raise RuntimeError("model file missing")
-    return list(SEGMENTS)
+    return list(calls["segments"] or SEGMENTS)
 
 
 real_available, real_segments = ocr.available, ocr.read_segments
 ocr.available, ocr.read_segments = (lambda: True), fake_segments
+os.environ["RXCHECK_OCR"] = "on"
 
 with tempfile.TemporaryDirectory() as t:
     tmp = Path(t)
@@ -194,12 +234,14 @@ with tempfile.TemporaryDirectory() as t:
     st, loc, *_ = ph.upload(slip)
     cid = loc.split("/")[-1]
     st, _, page, *_ = ph.req("GET", loc)
-    check("the form opens at once while the photo is read, and says so", st == 200 and "data-ocr-pending" in page
-          and "Reading the photo" in page and 'value="Dolo' not in page)
+    check("the form opens at once while the slip is read: state 'Reading'", st == 200 and "data-ocr-pending" in page
+          and 'data-ocr-state="reading"' in page and ">Reading</span>" in page and 'value="Dolo' not in page)
     st, ctype, data = wait_read(ph, cid)
     check("reading done: status, values and the summary panel as JSON", st == 200 and "json" in ctype
           and data["status"] == "done" and data["values"]["drugs"] == "Dolo 650, Alprax 0.25"
-          and data["values"]["regn"] == "TN-45821" and "Read from the photo" in data["panel"], data)
+          and data["values"]["regn"] == "TN-45821" and "Read from the slip" in data["panel"], data)
+    check("  state 'Needs confirmation (3)': what was filled in will need ticks if sent unchanged",
+          'data-ocr-state="confirm"' in data["panel"] and "Needs confirmation (3)" in data["panel"], data["panel"][:300])
     check("  'Metfornin' is shown with its crop, not filled in",
           "Metfornin 500" in data["panel"] and "Metfornin" not in data["values"]["drugs"]
           and re.search(r'src="/case/[^"]+/crop/\d+"', data["panel"]))
@@ -215,6 +257,8 @@ with tempfile.TemporaryDirectory() as t:
             "rx_date": (date.today() - timedelta(days=3)).isoformat()}
     st, _, page, *_ = ph.post(f"/case/{cid}/check", sent)
     ticks = page.count('name="confirm"')
+    check("sent with ticks missing -> state 'Check blocked'", 'data-ocr-state="blocked"' in page
+          and ">Check blocked</span>" in page and "Tick the 3 item(s)" in page)
     check("sent unchanged -> ticks for the name not on file (new counter: no Dolo yet), the high-risk medicine and "
           "the Regn No, each beside its crop",
           st == 200 and ticks == 3 and "not a name this pharmacy has on file" in page and "high-risk medicine" in page
@@ -226,8 +270,9 @@ with tempfile.TemporaryDirectory() as t:
     rows = {a: json.loads(d) for a, d in r.db().execute("SELECT action, detail FROM audit WHERE ref = ?", (cid,))}
     check("audit: the ticked photo readings, and the counts of what was kept",
           any("read from the photo" in i["issue"] for i in rows["entry-confirmed"]["issues"])
-          and rows["ocr-use"] == {"offered": 5, "kept": 5, "changed": 0, "unclear": 1, "ms": rows["ocr-use"]["ms"],
-                                  "engine": "rapidocr"}, rows.get("ocr-use"))
+          and {k: rows["ocr-use"][k] for k in ("status", "offered", "kept", "changed", "unclear", "engine")}
+          == {"status": "done", "offered": 5, "kept": 5, "changed": 0, "unclear": 1, "engine": "rapidocr"}
+          and len(rows["ocr-use"]["readings"]) == 6, rows.get("ocr-use"))
     check("  the audit line is readable", "5 value(s) filled in from the photo, 5 kept" in app.audit_summary(
         {"action": "ocr-use", "detail": json.dumps(rows["ocr-use"])}))
 
@@ -260,14 +305,99 @@ with tempfile.TemporaryDirectory() as t:
           and ph.post(f"/case/{cid3}/check", {"drugs": "Dolo 650"})[0] == 303, data)
     calls["fail"] = False
 
-    # switched off: no reading, no panel, no extra calls
+    # 'Ready': everything filled in is on file and clear, nothing to tick
+    calls["segments"] = [((60, 300, 500, 340), "1. Tab. Dolo 650 mg 1-0-1", 0.99)]
+    st, loc, *_ = ph.upload(slip)
+    st, _, data = wait_read(ph, loc.split("/")[-1])
+    check("state 'Ready' when nothing filled in needs a tick", 'data-ocr-state="ready"' in data["panel"]
+          and ">Ready</span>" in data["panel"] and data["values"] == {"drugs": "Dolo 650"}, data["panel"][:200])
+    calls["segments"] = None
+
+    # sent before the reading finished: counted as such, nothing from the photo asked
+    calls["delay"] = 2.0
+    st, loc, *_ = ph.upload(slip)
+    cid4 = loc.split("/")[-1]
+    st, loc, *_ = ph.post(f"/case/{cid4}/check", {"drugs": "Dolo 650"})
+    use = json.loads(r.db().execute("SELECT detail FROM audit WHERE ref = ? AND action = 'ocr-use'", (cid4,)).fetchone()[0])
+    check("form sent while still reading -> decision as typed; audit counts it as 'pending'", st == 303
+          and use["status"] == "pending", use)
+    time.sleep(2.2)
+    calls["delay"] = 0.3
+
+    # PDFs: a text layer is read without the engine; scanned pages go through OCR; bad files are refused clearly
     n = calls["n"]
+    pdf = make_pdf.text_pdf([[(60, 60, 20, "SYNTHETIC TEST CLINIC"), (60, 100, 12, "Dr. Asha Example, MBBS"),
+                              (60, 118, 12, "Regn No: TN-45821"), (400, 140, 12, f"Date: {day}")],
+                             [(60, 80, 12, "1. Tab. Dolo 650 mg 1-0-1"), (60, 110, 12, "2. Tab. Alprax 0.25 mg 0-0-1")]])
+    st, loc, *_ = ph.upload(pdf, "rx.pdf", "application/pdf")
+    cidp = loc.split("/")[-1]
+    st, _, data = wait_read(ph, cidp)
+    check("2-page PDF with a text layer: read from its text, medicines from page 2, no OCR engine call",
+          st == 200 and data["values"].get("drugs") == "Dolo 650, Alprax 0.25" and data["values"].get("regn") == "TN-45821"
+          and calls["n"] == n and "(2 pages)" in data["panel"], data)
+    case = json.loads((r.LEDGER_DIR / "uploads" / f"{cidp}.json").read_text(encoding="utf-8"))
+    p2 = next(i for i, c in enumerate(case["ocr"]["crops"]) if c["page"] == 1)
+    st, _, _, img, ctype = ph.req("GET", f"/case/{cidp}/crop/{p2}")
+    form = ph.req("GET", f"/case/{cidp}")[2]
+    check("  crop from page 2 served; page 2 shown and served; the form says checks used page 1",
+          st == 200 and img[:2] == b"\xff\xd8" and ph.req("GET", f"/case/{cidp}/page/2")[0] == 200
+          and ph.req("GET", f"/case/{cidp}/page/3")[0] == 404 and "PDF, 2 pages" in form
+          and f'src="/case/{cidp}/page/2"' in form)
+    check("  the band for PDF text is its own", all(x["src"] == "text" for x in case["ocr"]["drugs"])
+          and ocr.usage(case["ocr"], {"drugs": "Dolo 650"})["readings"][0]["band"] == "PDF text")
+    st, loc, *_ = ph.post(f"/case/{cidp}/check", {"drugs": "Dolo 650", "regn": "TN-45824"})
+    check("  the PDF case goes through the check like a photo", st == 303)
+    from PIL import Image
+    pages = [Image.fromarray(cv2.cvtColor(other_slip(seed=s), cv2.COLOR_BGR2RGB)) for s in (8, 9)]
+    st, loc, *_ = ph.upload(make_pdf.image_pdf(pages), "scan.pdf", "application/pdf")
+    st, _, data = wait_read(ph, loc.split("/")[-1])
+    check("scanned 2-page PDF (no text layer): each page read by OCR", data.get("status") == "done"
+          and calls["n"] == n + 2, (calls["n"] - n, data.get("status")))
+    for bad, why in ((make_pdf.locked_pdf(), "password-protected"), (b"%PDF-1.4 not really", "cannot be opened"),
+                     (make_pdf.text_pdf([[(60, 60, 12, "page")]] * 7), "at most 6")):
+        if bad is None:
+            print("[SKIP] password-protected PDF: pypdf not installed")
+            continue
+        st, _, text, *_ = ph.upload(bad, "x.pdf", "application/pdf")
+        check(f"bad PDF refused with a clear message: {why}", st == 400 and why in text, (st, text[:200]))
+
+    # the pilot report: pharmacists only; CSV of every reading, no content; the export is audited
+    r.add_staff("staff-a", "staff", "222222")
+    sa = Client(port)
+    sa.post("/login", {"name": "staff-a", "pin": "222222"})
+    check("photo reading report: staff cannot open it", sa.req("GET", "/ocr-report")[0] == 403)
+    st, _, page, *_ = ph.req("GET", "/ocr-report?days=14")
+    check("  pharmacist sees checks, acceptance per field and band", st == 200 and "Kept as read (acceptance)" in page
+          and '<th scope="row">Medicine</th>' in page and "PDF text" in page and "sent while still reading" in page)
+    st, _, text, data, ctype = ph.req("GET", "/ocr-report.csv?days=14")
+    lines = text.lstrip("\ufeff").strip().splitlines()
+    n_read = sum(len(json.loads(d).get("readings") or [None]) for (d,) in
+                 r.db().execute("SELECT detail FROM audit WHERE action = 'ocr-use'"))
+    check("  CSV: one row per reading, no slip text; the export is in the audit trail",
+          st == 200 and "csv" in ctype and lines[0].startswith("at,actor,case,status") and len(lines) - 1 == n_read
+          and "Dolo" not in text and "TN-45821" not in text
+          and r.db().execute("SELECT COUNT(*) FROM audit WHERE action = 'audit-export' AND detail LIKE '%ocr-report%'"
+                             ).fetchone()[0] == 1, (len(lines), n_read))
+
+    # 'OCR disabled', and why
+    n = calls["n"]
+    os.environ["RXCHECK_OCR"] = "off"
+    st, loc, *_ = ph.upload(slip)
+    st, _, page, *_ = ph.req("GET", loc)
+    check("switched off -> state 'OCR disabled', says why, nothing read", 'data-ocr-state="disabled"' in page
+          and ">OCR disabled</span>" in page and "switched off on this counter" in page and calls["n"] == n
+          and json.loads(ph.req("GET", f"{loc}/ocr")[2])["status"] == "off")
+    os.environ["RXCHECK_OCR"] = "on"
     ocr.available = lambda: False
     st, loc, *_ = ph.upload(slip)
     st, _, page, *_ = ph.req("GET", loc)
-    time.sleep(0.5)
-    check("OCR off or not installed -> the form as before, nothing read", 'id="ocr"' not in page and calls["n"] == n
-          and json.loads(ph.req("GET", f"{loc}/ocr")[2])["status"] == "off")
+    time.sleep(0.4)
+    check("not installed -> 'OCR disabled', 'not installed on this counter'", 'data-ocr-state="disabled"' in page
+          and "not installed on this counter" in page and calls["n"] == n)
+    st, loc, *_ = ph.upload(pdf, "rx.pdf", "application/pdf")
+    st, _, data = wait_read(ph, loc.split("/")[-1])
+    check("  ...a PDF with a text layer is still read (no engine needed)",
+          data["values"].get("drugs") == "Dolo 650, Alprax 0.25", data)
     srv.shutdown()
     r.close_db()
 

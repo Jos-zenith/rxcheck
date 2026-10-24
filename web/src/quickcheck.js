@@ -2,7 +2,8 @@
 // or pasted with Ctrl/Cmd+V (for example an image copied from WhatsApp Web). Works only where the page offers
 // a photo form (form[data-primary] with input[data-shortcut="upload"]). Hold outcomes are never automated.
 
-const isImage = (f) => f && /^image\//.test(f.type)
+// a photo, or a PDF prescription (each page is read on the server)
+const isImage = (f) => f && (/^image\//.test(f.type) || f.type === 'application/pdf')
 
 export function installQuickCheck() {
   const inputs = [...document.querySelectorAll('form[data-primary] input[type="file"][data-shortcut="upload"]')]
