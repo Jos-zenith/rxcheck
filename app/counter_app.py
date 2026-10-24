@@ -40,6 +40,7 @@ import rxcheck as r
 MAX_UPLOAD = 15 * 1024 * 1024
 DEMO_USER = "Demo visitor"                # public demo only: everyone who opens the link is signed in as this
 DEMO_DIR = Path(__file__).resolve().parent.parent / "demo"   # synthetic sample slips (tests/build_demo_samples.py)
+SETUP_URL = "https://github.com/joshuajzenith-commits/rxche#reading-the-slip-ocr-a-typing-aid-not-a-check"
 MAX_DEMO_SESSIONS = 500                   # a crawler cannot fill memory with demo sessions
 SESSION_IDLE = timedelta(minutes=30)      # shared counter PCs: re-enter the PIN after a break
 SESSION_MAX = timedelta(hours=10)         # one shift
@@ -283,16 +284,28 @@ html[data-contrast=high] a{text-decoration-thickness:2px}html[data-contrast=high
 html[data-contrast=high] select,html[data-contrast=high] textarea{border-width:2px;border-color:var(--ink)}
 html[data-contrast=high] button{border-width:2px}
 a{color:var(--accent);text-underline-offset:3px}
-header{position:sticky;top:0;z-index:10;display:flex;gap:10px 18px;align-items:center;padding:10px 20px;background:var(--card);border-bottom:var(--bw) solid var(--line);flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-weight:800;font-size:1.1rem;line-height:1.1}
-.brand small{display:block;font-size:.7rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
-.mark{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--accent);color:var(--card);font-weight:900;font-size:.95rem;font-style:italic}
-header nav{display:flex;gap:4px;flex:1 1 auto;flex-wrap:wrap}
-header nav a{padding:8px 14px;border-radius:9px;color:var(--ink);text-decoration:none;font-weight:600}
-header nav a:hover{background:var(--bg)}header nav a[aria-current=page]{background:var(--accent);color:var(--card)}
-.who{display:flex;align-items:center;gap:10px;line-height:1.15}.who b{display:block}
-.who .role{display:block;font-size:.8rem;color:var(--muted);text-transform:capitalize}
-.avatar{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--bg);border:var(--bw) solid var(--line);font-weight:800;font-size:.85rem}
+header{position:sticky;top:12px;z-index:10;display:flex;gap:8px 14px;align-items:center;flex-wrap:wrap;
+max-width:1160px;margin:16px auto 0;padding:8px 10px 8px 12px;border-radius:999px;
+background:color-mix(in srgb,var(--card) 90%,transparent);border:var(--bw) solid var(--line);
+box-shadow:0 10px 30px #0000001f,0 1px 2px #00000014;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+@media (max-width:1200px){header{margin-left:20px;margin-right:20px}}
+html[data-contrast=high] header{background:var(--card);border:2px solid var(--ink);box-shadow:none}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-weight:800;font-size:1.05rem;line-height:1.1}
+.brand small{display:block;font-size:.66rem;font-weight:700;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+.mark{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--accent);color:var(--card);font-weight:900;font-size:.95rem;font-style:italic}
+header nav{display:flex;gap:2px;flex:1 1 auto;justify-content:center;flex-wrap:wrap}
+header nav a{position:relative;display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;
+color:var(--accent);text-decoration:none;font-weight:700;font-size:.84rem;letter-spacing:.14em;text-transform:uppercase}
+header nav a:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+header nav a[aria-current=page]::after{content:"";position:absolute;left:50%;bottom:2px;width:7px;height:7px;
+margin-left:-3.5px;border-radius:50%;background:var(--accent)}
+.who{display:flex;align-items:center;gap:10px;line-height:1.15;font-size:.92rem}.who b{display:block}
+.who .role{display:block;font-size:.76rem;color:var(--muted);text-transform:capitalize}
+.avatar{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--bg);border:var(--bw) solid var(--line);font-weight:800;font-size:.85rem}
+button.round,.rx-display button{display:inline-grid;place-items:center;width:40px;height:40px;min-height:40px;padding:0;
+border-radius:50%;border:var(--bw) solid var(--line);background:transparent;color:var(--accent);font-weight:800;font-size:.9rem}
+button.round:hover,.rx-display button:hover:not(:disabled):not([aria-pressed=true]){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+#rx-display{padding-left:12px;border-left:var(--bw) solid var(--line)}#rx-display:empty{display:none}
 main{max-width:1200px;margin:0 auto;padding:20px}
 .card{background:var(--card);border:var(--bw) solid var(--line);border-radius:14px;padding:20px;margin:0 0 16px;box-shadow:0 1px 3px #00000012}
 h1{font-size:1.45rem;margin:0 0 6px;letter-spacing:-.01em}h2{font-size:1.05rem;margin:0 0 12px}h3{font-size:1rem;margin:0 0 8px}
@@ -368,11 +381,19 @@ details.tip[open]>summary{background:var(--ink);color:var(--card);border-color:v
 background:var(--card);color:var(--ink);border:var(--bw) solid var(--line);box-shadow:0 6px 18px #00000030;font-size:.92rem;
 font-weight:400;line-height:1.45}
 .drop{align-items:center;text-align:center;padding:6px 0}.drop-icon{color:var(--accent)}
-.samples .sample{padding:0;border:0;background:none}
-.sample-btn{display:flex;flex-direction:column;align-items:flex-start;gap:6px;width:100%;height:100%;padding:10px;
-border-radius:12px;border:var(--bw) solid var(--line);background:var(--bg);color:var(--ink);text-align:left;font-weight:600}
-.sample-btn:hover{border-color:var(--accent)}.sample-btn img{width:100%;height:120px;object-fit:cover;object-position:top;
-border-radius:8px;border:var(--bw) solid var(--line);background:#fff}
+.demo-note{margin:10px 0 0;padding:10px 14px;border-radius:10px;background:var(--bg);border:var(--bw) solid var(--line);
+border-left:4px solid var(--accent);font-size:.94rem}
+.demo-try{margin-top:18px;padding-top:12px;border-top:var(--bw) solid var(--line)}
+.demo-try h2{font-size:1rem;margin:0}.demo-try .status-row{margin:0 0 8px}
+.samples{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:8px}
+.sample{margin:0}
+.sample-btn{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;height:100%;min-height:44px;
+padding:6px 10px 6px 6px;border-radius:10px;border:var(--bw) solid var(--line);background:var(--bg);color:var(--ink);
+text-align:left;font-weight:600;font-size:.88rem}
+.sample-btn:hover{border-color:var(--accent)}.sample-btn img{flex:none;width:48px;height:48px;object-fit:cover;
+object-position:top;border-radius:6px;border:var(--bw) solid var(--line);background:#fff}
+.sample-text{display:flex;flex-direction:column;align-items:flex-start;gap:3px;line-height:1.25}
+.sample-text .pill{font-size:.72rem;padding:0 7px}
 ul.chips{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
 ul.chips li{margin:0;padding:3px 10px;border-radius:99px;font-size:.88rem;font-weight:600;border:1px solid var(--line)}
 ul.chips li.yes{border-color:var(--green);color:var(--green);background:var(--green-bg)}
@@ -399,8 +420,7 @@ details.chk[open] .find{white-space:normal}}
 .verdict .why .tip{margin-left:8px;vertical-align:2px}.verdict .why .tip-body{color:var(--ink)}
 tr.late td,tr.late th{background:var(--amber-bg)}.hold-meta{margin:0 0 4px}
 .checks h3{display:flex;gap:10px;align-items:center;margin:0 0 4px}.checks p{margin:4px 0}
-.checks ul.ev{margin:4px 0;color:var(--muted);font-size:.94rem}.checks .unknown{color:var(--muted);font-size:.94rem}.demo-about pre{overflow-x:auto;padding:12px;border-radius:10px;background:var(--bg);
-border:var(--bw) solid var(--line);font-size:.88rem}table.compact td,table.compact th{padding:6px 8px}
+.checks ul.ev{margin:4px 0;color:var(--muted);font-size:.94rem}.checks .unknown{color:var(--muted);font-size:.94rem}table.compact td,table.compact th{padding:6px 8px}
 table.compact caption{text-align:left;margin-bottom:6px}
 tbody th{text-transform:none;letter-spacing:0;font-size:inherit;color:var(--ink);font-weight:600}
 .demo-about h3{margin:20px 0 8px}.scroll{overflow-x:auto}
@@ -416,12 +436,12 @@ kbd[data-keys]{margin-left:8px;font-size:.85em;opacity:.95}.hint{color:var(--mut
 .login{max-width:440px;margin:48px auto;padding:32px}.login button{width:100%;min-height:50px}
 .big-mark{width:52px;height:52px;font-size:1.3rem;border-radius:14px;margin-bottom:14px}
 label.tick{font-weight:400;display:flex;gap:8px;align-items:flex-start}
-.samples{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
-.sample{display:flex;flex-direction:column;gap:6px;align-items:flex-start;padding:14px;border-radius:12px;background:var(--bg);border:var(--bw) solid var(--line)}
-.sample button{margin-top:auto}.demo-try{border:2px solid var(--accent)}
 .say{margin:10px 0 0;padding:8px 12px;border-radius:8px;background:var(--bg);color:var(--ink)}
-@media (max-width:600px){main{padding:12px}header{padding:8px 12px}.who>span:not(.avatar){display:none}
-.who{order:1;margin-left:auto}header nav{order:2;flex-basis:100%}#rx-display{order:3}
+@media (max-width:860px){header{border-radius:26px;padding:8px 10px}.who{margin-left:auto}
+header nav{order:5;flex-basis:100%;border-top:var(--bw) solid var(--line);padding-top:4px}}
+@media (max-width:600px){main{padding:12px}header{margin:10px 12px 0;top:8px}.who>span:not(.avatar){display:none}
+.brand-name{display:none}header{column-gap:6px}.who{gap:6px}#rx-display{padding-left:0;border-left:0}
+header nav a{padding:0 12px;letter-spacing:.1em}
 .verdict{grid-template-columns:1fr;gap:10px;padding:16px;border-left-width:8px}.verdict .icon{width:46px;height:46px;font-size:1.5rem}
 .verdict .word{font-size:1.8rem}.split{grid-template-columns:1fr}.today{grid-template-columns:repeat(2,minmax(0,1fr))}
 .actions button{flex:1 1 100%}}
@@ -456,7 +476,8 @@ def page(title, body, user=None, refresh=None):
                f'<span><b>{esc(user["name"])}</b><span class="role">{esc(user["role"])}</span></span>'
                + ("" if user["name"] == DEMO_USER else   # the public demo visitor has nothing to sign out of
                   f'<form class="inline" method="post" action="/logout">{csrf_field(user)}'
-                  f'<button class="secondary small" type="submit">Sign out</button></form>') + '</div>')
+                  f'<button class="round" type="submit" aria-label="Sign out" title="Sign out">{SIGN_OUT_ICON}</button>'
+                  f'</form>') + '</div>')
     meta = f'<meta http-equiv="refresh" content="{refresh}">' if refresh else ""
     banner = f'<p class="demo" role="alert">{esc(DEMO_BANNER)}</p>' if DEMO else ""
     enhance = ""
@@ -466,9 +487,9 @@ def page(title, body, user=None, refresh=None):
     return (f'<!doctype html><html lang="en"{ui_attrs()}><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">{meta}'
             f'<title>{esc(title)} - rxcheck</title><link rel="stylesheet" href="/app.css">{enhance}</head><body>'
-            f'<a class="skip" href="#main">Skip to main content</a>'
+            f'<a class="skip" href="#main">Skip to main content</a>{banner}'
             f'<header><a class="brand" href="/"><span class="mark" aria-hidden="true">Rx</span>'
-            f'<span>rxcheck<small>counter</small></span></a>{nav}<div id="rx-display"></div></header>{banner}'
+            f'<span class="brand-name">rxcheck<small>counter</small></span></a>{nav}<div id="rx-display"></div></header>'
             f'<main id="main" tabindex="-1">{body}</main></body></html>')
 
 
@@ -527,6 +548,9 @@ def chip(text, kind=""):
 UPLOAD_ICON = ('<svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true" width="40" height="40"><path fill="none" '
                'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 '
                '4m4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>')
+SIGN_OUT_ICON = ('<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path fill="none" stroke="currentColor" '
+                 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 '
+                 '2h-3M10 16l-4-4 4-4M6 12h10"/></svg>')
 
 
 def verdict_block(verdict, reason, extra=""):
@@ -634,13 +658,13 @@ def home_page(user):
     backup = backup_line()
     alerts = holds + (backup.replace('<p class="warn">', '<p class="notice notice-red">') if 'class="warn"' in backup else "")
     status = "" if 'class="warn"' in backup else f'<section class="card">{backup}</section>'
-    return page("Counter", f"""{alerts}{demo_panel(user)}<div class="home"><section class="card hero" id="check"><div class="hero-head"><h1>Check a prescription</h1>{reading_status()}</div>
-<form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
+    return page("Counter", f"""{alerts}<div class="home"><section class="card hero" id="check"><div class="hero-head"><h1>Check a prescription</h1>{reading_status()}</div>
+{demo_upload_note()}<form method="post" action="/upload" enctype="multipart/form-data" data-primary>{csrf_field(user)}
 <label for="image" class="drop">{UPLOAD_ICON}<span class="drop-title">Photo or PDF of the slip</span>
 <span class="muted"><span class="js-only">Drop, paste or choose - it starts by itself</span><span class="nojs-only">Choose a file, then Analyse</span> {kbd("Mod+U")}</span></label><input type="file" id="image" name="image" accept="image/*,application/pdf"
  required data-shortcut="upload" aria-keyshortcuts="Control+U Meta+U">
 <p class="upload-status" role="status" aria-live="polite" data-upload-status></p>
-<p class="nojs-only"><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Analyse prescription</button>{kbd("Mod+Enter")}</p></form></section>
+<p class="nojs-only"><button type="submit" class="big" aria-keyshortcuts="Control+Enter Meta+Enter">Analyse prescription</button>{kbd("Mod+Enter")}</p></form>{demo_panel(user)}</section>
 <div class="side">{today_panel(user)}{activity_panel(user)}</div></div>{demo_about() if DEMO and demo_ready() else ""}
 <section class="card"><h2>Received on WhatsApp</h2>{inbox}</section>{status}""", user, refresh=60)
 
@@ -654,12 +678,23 @@ def reading_status():
         state, label, cls = "on", "Slip reading on", "v-GREEN"
         why = ("Reads the slip in 5-15 s while you work and fills in what it can. Anything uncertain is marked for a "
                "tick against the slip. Nothing leaves this PC.")
+    elif DEMO:
+        state, label, cls = "missing", "Slip reading: samples only", "s-quiet"
+        why = ("This public demo has no OCR engine, so your own photos are not read. The Printed slip sample replays a "
+               "reading recorded with the engine on a PC.")
     else:
         state, label, cls = "missing", "Slip reading not installed", "s-quiet"
-        why = ("Your own photos are not read on this public demo: the Printed slip sample replays a reading recorded "
-               "with the engine.") if DEMO else "Staff type the medicines. To install: requirements-ocr.txt."
+        why = "Staff type the medicines. To install: requirements-ocr.txt."
     return (f'<div class="status-row reading-status" data-ocr-status="{state}"><span class="pill {cls}">{label}</span>'
             f'{tip("About slip reading", esc(why))}</div>')
+
+
+def demo_upload_note():
+    """Public demo without the OCR engine: what happens to the visitor's own photo, said before they upload it."""
+    if not (DEMO and ocr.enabled() and not ocr.available()):
+        return ""
+    return ('<p class="demo-note"><b>On this demo, your own photo gets the image checks, and you type the '
+            'medicines.</b> To see a slip read for you, open the <i>Printed slip</i> sample below.</p>')
 
 
 def ocr_results():
@@ -700,10 +735,8 @@ def demo_about():
                        f' {x}</li>' for x in no))
     return (f'<section class="card demo-about" aria-labelledby="about-h"><h2 id="about-h">This demo</h2>'
             f'<ul class="chips">{chips}</ul>{figures}{table}'
-            f'<details class="more"><summary>Run with live slip reading</summary><pre><code>'
-            f'pip install -r requirements.txt -r requirements-ocr.txt\n'
-            f'pip install --no-deps rapidocr_onnxruntime==1.4.4\npython app/slip_reader.py slip.jpg     # one photo\n'
-            f'python app/rxcheck.py serve        # the counter</code></pre></details></section>')
+            f'<p class="hint">To run it on your own PC with live slip reading, see the '
+            f'<a href="{SETUP_URL}" target="_blank" rel="noopener">setup notes</a>.</p></section>')
 
 
 def demo_panel(user):
@@ -714,11 +747,11 @@ def demo_panel(user):
     tiles = "".join(
         f'<form method="post" action="/demo/try" class="sample">{csrf_field(user)}'
         f'<input type="hidden" name="key" value="{esc(s["key"])}"><button type="submit" class="sample-btn">'
-        f'<img src="/demo/thumb/{esc(s["key"])}" alt="" width="180" height="120" loading="lazy">'
-        f'<span class="pill v-{esc(s.get("expect", "GREEN"))}">{esc(s.get("expect", ""))}</span>'
-        f'<b>{esc(s["label"])}</b></button></form>'
+        f'<img src="/demo/thumb/{esc(s["key"])}" alt="" width="48" height="48" loading="lazy">'
+        f'<span class="sample-text"><b>{esc(s["label"])}</b>'
+        f'<span class="pill v-{esc(s.get("expect", "GREEN"))}">{esc(s.get("expect", ""))}</span></span></button></form>'
         for s in meta["samples"] if (DEMO_DIR / s["image"]).is_file())
-    return (f'<section class="card demo-try" aria-labelledby="demo-h"><div class="hero-head"><h2 id="demo-h">Try a sample '
+    return (f'<section class="demo-try" aria-labelledby="demo-h"><div class="status-row"><h2 id="demo-h">Try a sample '
             f'slip</h2>{tip("About the samples", "Synthetic test images. One slip is on record as dispensed (" + esc(meta["reference"]["id"]) + "), so copies of it are recognised. The Printed slip is read by OCR (a recorded reading); for the others the medicines are filled in for you.")}</div>'
             f'<div class="samples">{tiles}</div></section>')
 
@@ -872,7 +905,7 @@ def ocr_panel(cid, read, issues=None):
     counts = (chip(f"{n_fill} filled", "src") + (chip(f"{n_tick} to tick", "warn") if n_tick else "")
               + (chip(f"{len(unclear)} unclear") if unclear else "") + (chip(f"{pages} pages") if pages > 1 else ""))
     replay = "recorded" in (read.get("engine") or "")
-    about = ("<b>Recorded reading.</b> Slip reading is not installed on this public demo, so this sample replays what the "
+    about = ("<b>Recorded reading.</b> This public demo has no OCR engine, so this sample replays what the "
              "OCR engine read from this same image on a PC. What is filled in, what needs a tick and the check run here, "
              "live. " if replay else "") + ("Read from the slip and filled into empty fields only. Marked fields need a "
                                            "tick against the slip when you continue.")

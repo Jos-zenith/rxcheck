@@ -187,12 +187,18 @@ with tempfile.TemporaryDirectory() as t:
     os.environ["RXCHECK_OCR"] = "on"
     real_available, ocr.available = ocr.available, (lambda: False)
     s, _, _, body = req2("GET", "/", headers=h)
-    check("home page: 'Slip reading not installed', and says the Printed slip replays a recorded reading",
-          'data-ocr-status="missing"' in body and "Slip reading not installed" in body and "replays a reading" in body)
+    check("home page: 'Slip reading: samples only', and says the Printed slip replays a recorded reading",
+          'data-ocr-status="missing"' in body and "Slip reading: samples only" in body and "replays a" in body)
+    check("  ...and says what happens to the visitor's own photo before the upload box",
+          'class="demo-note"' in body and body.index('class="demo-note"') < body.index('id="image"')
+          and "you type the medicines" in body)
+    check("  sample slips sit inside the check card, under the upload box",
+          body.index('id="image"') < body.index('id="demo-h"') < body.index('class="side"'))
     check("  'This demo': what it includes, the reader's scores on the synthetic set with their caveat, sample thumbnails",
           "This demo" in body and "Scores by slip type" in body and "Silent errors" in body
           and "silent errors" in body and '/demo/thumb/printed' in body
-          and "not evidence of accuracy on real prescriptions" in body and "python app/slip_reader.py slip.jpg" in body)
+          and "not evidence of accuracy on real prescriptions" in body and "setup notes" in body
+          and "pip install" not in body)
     s, loc, _, _ = req2("POST", "/demo/try", urlencode({"key": "printed", "csrf": csrf}), h)
     pcid = loc.rsplit("/", 1)[-1]
     s, _, _, body = req2("GET", loc, headers=h)

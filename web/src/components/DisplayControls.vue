@@ -28,15 +28,26 @@ const keys = [
 
 <template>
   <div class="rx-display" role="group" aria-label="Display and keyboard">
-    <span class="rx-display__size" aria-live="polite">Text {{ size }}%</span>
-    <button type="button" class="secondary rx-icon" :disabled="prefs.text === 0" @click="smaller"
-            aria-label="Smaller text">A−</button>
-    <button type="button" class="secondary rx-icon" :disabled="prefs.text === TEXT_SIZES.length - 1" @click="bigger"
-            aria-label="Larger text">A+</button>
-    <button type="button" class="secondary" :aria-pressed="highContrast ? 'true' : 'false'" @click="toggleContrast">
-      High contrast
+    <span class="rx-sr" aria-live="polite">Text {{ size }}%</span>
+    <button type="button" :disabled="prefs.text === 0" @click="smaller"
+            aria-label="Smaller text" :title="`Smaller text (now ${size}%)`">A−</button>
+    <button type="button" :disabled="prefs.text === TEXT_SIZES.length - 1" @click="bigger"
+            aria-label="Larger text" :title="`Larger text (now ${size}%)`">A+</button>
+    <button type="button" :aria-pressed="highContrast ? 'true' : 'false'" @click="toggleContrast"
+            aria-label="High contrast" title="High contrast">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2" />
+        <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" />
+      </svg>
     </button>
-    <button type="button" class="secondary" aria-keyshortcuts="Shift+?" @click="helpOpen = true">Shortcuts</button>
+    <button type="button" aria-keyshortcuts="Shift+?" @click="helpOpen = true"
+            aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round">
+        <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+        <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8" />
+      </svg>
+    </button>
   </div>
 
   <Teleport to="body">
@@ -57,11 +68,9 @@ const keys = [
 </template>
 
 <style>
-.rx-display { display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
-.rx-display button { padding: 6px 10px }
-.rx-display__size { color: var(--muted); font-size: .9rem; min-width: 5.5em; text-align: right }
-.rx-icon { min-width: 2.75rem; font-weight: 800 }
-.rx-display button[aria-pressed="true"] { background: var(--accent); color: var(--card) }
+/* the round button shape itself is in the server stylesheet, so the header looks the same before this loads */
+.rx-display { display: flex; gap: 6px; align-items: center }
+.rx-display button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--card) }
 .rx-display button:disabled { opacity: 1; color: var(--muted); border-color: var(--line); cursor: default }
 .rx-dialog { max-width: 560px; width: calc(100% - 32px); border: 2px solid var(--ink); border-radius: 12px;
   background: var(--card); color: var(--ink); padding: 20px }
