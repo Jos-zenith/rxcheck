@@ -649,5 +649,4 @@ python eval/build_slip_reader_set.py && python eval/score_slip_reader.py      # 
 | `landing-page/` | Static landing page for the project |
 | `data/` | Empty prescriber registry, illustrative drug-risk list, policy switches |
 | `ledger/`, `backups/`, `inbox/`, `reports/`, `samples/` | Local runtime or private dataset directories; excluded from Git |
-#   r x c h e c k  
- "# rxcheck" 
+#
